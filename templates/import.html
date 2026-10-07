@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Import - Rate Case Workbench{% endblock %}
+{% block content %}
+<h2 style="margin-top:0">Get data in</h2>
+<p class="muted">Three steps, no surprises: <strong>1.</strong> download a template &middot; <strong>2.</strong> fill it in with your numbers &middot; <strong>3.</strong> upload it here. We'll check every row and show you any problems in plain language before anything is saved.</p>
+
+{% for key, t in templates.items() %}
+<div class="card">
+  <h3>{{ t[2] }}</h3>
+  <p>
+    <a class="btn btn-sec" href="/templates/{{ key }}">Download template</a>
+  </p>
+  <form action="/import/{{ key }}" method="post" enctype="multipart/form-data">
+    <input type="file" name="file" accept=".xlsx" required>
+    <br><button class="btn" type="submit">Check &amp; preview</button>
+  </form>
+</div>
+{% endfor %}
+
+<div class="card">
+  <h3>Start over with fresh starter data?</h3>
+  <p class="muted">Reloads the built-in Ohio case data. Safe to run any time - it never duplicates anything.</p>
+  <form action="/seed" method="post"><button class="btn btn-sec" type="submit">Reload starter data</button></form>
+</div>
+{% endblock %}

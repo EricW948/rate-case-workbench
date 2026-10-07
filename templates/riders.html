@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Tariffs & Riders - Rate Case Workbench{% endblock %}
+{% block content %}
+<h2 style="margin-top:0">Tariffs &amp; riders</h2>
+<p class="muted">Every tariff and rider on the books, and the plan for each one: does it <strong>roll into base rates</strong> at the next case, or <strong>stay separate</strong>? This is what keeps the total-bill story honest.</p>
+<div class="card wrap">
+<table>
+  <tr><th>Utility</th><th>Name</th><th>Type</th><th>Status</th><th>Annual revenue</th><th>What happens next</th><th>Notes</th></tr>
+  {% for r in riders %}
+  <tr>
+    <td>{{ r.utility.name }}</td>
+    <td><strong>{{ r.name }}</strong></td>
+    <td>{{ r.kind.title() }}</td>
+    <td><span class="badge {% if r.status=='effective' %}b-decided{% elif r.status=='proposed' %}b-pending{% else %}b-historical{% endif %}">{{ rider_status_labels[r.status] }}</span></td>
+    <td>{% if r.annual_revenue is not none %}${{ "%.1f"|format(r.annual_revenue) }}M{% else %}<span class="muted">-</span>{% endif %}</td>
+    <td><span class="badge {% if r.disposition=='roll_into_base' %}b-roll{% elif r.disposition=='standalone' %}b-stand{% else %}b-undec{% endif %}">{{ disp_labels[r.disposition] }}</span></td>
+    <td class="muted">{{ r.notes or "-" }}</td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

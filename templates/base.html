@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Rate Case Workbench{% endblock %}</title>
+<style>
+  :root { --blue:#1d4ed8; --slate:#475569; --bg:#f1f5f9; --card:#ffffff; --line:#e2e8f0; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+         background:var(--bg); color:#0f172a; line-height:1.5; }
+  header.top { background:#0f2a5c; color:#fff; padding:14px 18px; }
+  header.top h1 { margin:0; font-size:19px; }
+  header.top p { margin:2px 0 0; font-size:13px; opacity:.85; }
+  nav { background:#fff; border-bottom:1px solid var(--line); padding:0 12px;
+        display:flex; flex-wrap:wrap; gap:2px; position:sticky; top:0; z-index:10; }
+  nav a { padding:12px 14px; text-decoration:none; color:var(--slate); font-weight:600; font-size:14px; }
+  nav a:hover { color:var(--blue); }
+  nav a.active { color:var(--blue); border-bottom:3px solid var(--blue); }
+  main { max-width:1020px; margin:0 auto; padding:18px 14px 60px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px;
+          padding:16px; margin-bottom:14px; }
+  .card h2, .card h3 { margin:0 0 8px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--slate); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .badge { display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:700; }
+  .b-decided { background:#dcfce7; color:#166534; }
+  .b-pending { background:#fef9c3; color:#854d0e; }
+  .b-stipulated { background:#e0e7ff; color:#3730a3; }
+  .b-historical { background:#f1f5f9; color:#475569; }
+  .b-prospective { background:#ede9fe; color:#6d28d9; }
+  .b-roll { background:#dcfce7; color:#166534; }
+  .b-stand { background:#e0f2fe; color:#075985; }
+  .b-undec { background:#f1f5f9; color:#64748b; }
+  .b-model { background:#fef3c7; color:#92400e; }
+  .big { font-size:26px; font-weight:800; }
+  .muted { color:var(--slate); font-size:13px; }
+  .btn { display:inline-block; background:var(--blue); color:#fff; border:0; border-radius:8px;
+         padding:10px 18px; font-size:14px; font-weight:700; cursor:pointer; text-decoration:none; }
+  .btn:hover { background:#1e40af; }
+  .btn-sec { background:#fff; color:var(--blue); border:2px solid var(--blue); }
+  .btn-sec:hover { background:#eff6ff; }
+  .alert { border-radius:10px; padding:12px 14px; margin-bottom:12px; font-size:14px; }
+  .alert-err { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; }
+  .alert-ok { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+  ul.errs { margin:6px 0; padding-left:20px; }
+  ul.errs li { margin:4px 0; }
+  input[type=file] { font-size:14px; margin:8px 0; }
+  .wrap { overflow-x:auto; }
+  footer { text-align:center; color:#94a3b8; font-size:12px; padding:20px; }
+  @media (max-width:640px){ .big{font-size:22px;} th,td{padding:7px 6px;font-size:13px;} }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Rate Case Workbench</h1>
+  <p>Build your next distribution rate case on what Ohio utilities actually asked for &mdash; and got.</p>
+</header>
+<nav>
+  <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Dashboard</a>
+  <a href="/cases" class="{% if request.url.path.startswith('/cases') %}active{% endif %}">Cases</a>
+  <a href="/discovery" class="{% if request.url.path.startswith('/discovery') %}active{% endif %}">Discovery</a>
+  <a href="/riders" class="{% if request.url.path.startswith('/riders') %}active{% endif %}">Tariffs &amp; Riders</a>
+  <a href="/charts" class="{% if request.url.path.startswith('/charts') %}active{% endif %}">Compare</a>
+  <a href="/import" class="{% if request.url.path.startswith('/import') %}active{% endif %}">Import</a>
+</nav>
+<main>
+{% block content %}{% endblock %}
+</main>
+<footer>Figures come from PUCO filings and orders. Check the case notes for sources.</footer>
+</body>
+</html>

@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}{{ utility.name }} - Rate Case Workbench{% endblock %}
+{% block content %}
+<style>
+  .uhead { display:flex; align-items:center; gap:16px; }
+  .monogram { width:64px; height:64px; border-radius:14px; background:#0f2a5c; color:#fff;
+              display:flex; align-items:center; justify-content:center;
+              font-weight:800; font-size:20px; flex:0 0 auto; }
+  .ticker { font-family:ui-monospace,Menlo,monospace; background:#f1f5f9; border:1px solid var(--line);
+            border-radius:8px; padding:4px 10px; font-size:13px; font-weight:700; color:#0f2a5c; }
+  .tabgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; margin:14px 0; }
+  .tabbox { background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px;
+            text-decoration:none; color:#0f172a; display:block; }
+  .tabbox:hover { border-color:var(--blue); }
+  .tabbox .n { font-size:22px; font-weight:800; }
+  .tabbox .t { font-size:13px; font-weight:700; }
+  .tabbox .d { font-size:12px; color:var(--slate); }
+  .tabbox.ext .t::after { content:" \2197"; color:var(--blue); }
+  .check li { margin:6px 0; }
+</style>
+
+<div class="card">
+  <div class="uhead">
+    <div class="monogram">{{ monogram }}</div>
+    <div>
+      <h2 style="margin:0">{{ utility.name }}
+        {% if is_model %}<span class="badge b-model">Model utility</span>{% endif %}</h2>
+      {% if utility.parent_company %}<p class="muted" style="margin:4px 0 0">a {{ utility.parent_company }} company</p>{% endif %}
+      {% if utility.notes %}<p class="muted" style="margin:4px 0 0; font-size:13px">{{ utility.notes }}</p>{% endif %}
+      <p style="margin:4px 0 0">
+        {% if utility.ticker %}<span class="ticker">{{ utility.ticker }}</span>{% endif %}
+        <span class="badge b-historical">{{ utility.sector|capitalize }}</span>
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="tabgrid">
+  <a class="tabbox" href="#pending"><div class="n">{{ pending|length }}</div><div class="t">Pending Cases</div><div class="d">Active dockets</div></a>
+  <a class="tabbox" href="#tariffs"><div class="n">{{ tariffs|length }}</div><div class="t">Tariffs</div><div class="d">Base tariff schedules</div></a>
+  <a class="tabbox" href="#riders"><div class="n">{{ riders|length }}</div><div class="t">Riders</div><div class="d">Trackers &amp; riders</div></a>
+  <a class="tabbox" href="#build"><div class="t" style="font-size:15px">Base Rate Case Build</div><div class="d">Assemble the filing</div></a>
+  {% for t in external_tools %}
+  <a class="tabbox ext" href="{{ t.url }}" target="_blank" rel="noopener"><div class="t">{{ t.name }}</div><div class="d">{{ t.hint }}</div></a>
+  {% endfor %}
+</div>
+
+<div class="card" id="returns">
+  <h3>Returns at a glance</h3>
+  {% if auth_roe is not none or earned_rows %}
+  <div class="wrap"><table>
+    <tr><th></th><th>ROE</th><th>Source</th></tr>
+    <tr>
+      <td><strong>Authorized</strong></td>
+      <td>{% if auth_roe is not none %}{{ "%.2f"|format(auth_roe) }}%{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+      <td>{% if auth_docket %}<a href="/cases/{{ auth_case_id }}">{{ auth_docket }}</a> <span class="muted">(final / stipulated)</span>{% else %}<span class="muted">No authorized ROE on file yet.</span>{% endif %}</td>
+    </tr>
+    {% if earned_rows %}
+    <tr>
+      <td><strong>Earned ({{ earned_rows[0].year }})</strong></td>
+      <td>{{ "%.2f"|format(earned_rows[0].earned_roe) }}%</td>
+      <td>{{ earned_rows[0].source }}</td>
+    </tr>
+    {% if auth_roe is not none %}
+    {% set var = earned_rows[0].earned_roe - auth_roe %}
+    <tr>
+      <td><strong>Variance</strong></td>
+      <td><strong>{% if var >= 0 %}+{% endif %}{{ "%.2f"|format(var) }} pts</strong></td>
+      <td><span class="muted">earned minus authorized; positive = over-earning</span></td>
+    </tr>
+    {% endif %}
+    {% endif %}
+  </table></div>
+  {% if auth_cap %}<p><span class="muted">Debt / equity (authorized):</span> {{ auth_cap }}</p>{% endif %}
+  {% if earned_rows|length > 1 %}
+  <div class="wrap"><table>
+    <tr><th>Year</th><th>Earned ROE</th><th>Source</th></tr>
+    {% for e in earned_rows %}
+    <tr><td>{{ e.year }}</td><td>{{ "%.2f"|format(e.earned_roe) }}%</td><td>{{ e.source }}</td></tr>
+    {% endfor %}
+  </table></div>
+  {% endif %}
+  {% else %}
+  <p class="muted">No return data on file yet.</p>
+  {% endif %}
+  {% if not earned_rows %}
+  <p class="muted">Earned ROE comes from annual earnings filings (PUCO earnings reports, 10-Ks), not the rate case docket. Add it with the <a href="/import">Earned ROE template</a>.</p>
+  {% endif %}
+</div>
+
+<div class="card" id="pending">
+  <h3>Pending Cases</h3>
+  {% if pending %}
+  <div class="wrap"><table>
+    <tr><th>Docket</th><th>Type</th><th>Operating company</th><th>Status</th><th>Filed</th><th>DIS</th></tr>
+    {% for c in pending %}
+    <tr>
+      <td><a href="/cases/{{ c.id }}">{{ c.docket }}</a></td>
+      <td><span class="badge b-{{ c.case_type }}">{{ type_labels[c.case_type] }}</span></td>
+      <td>{% if c.operating_company %}{{ c.operating_company }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+      <td><span class="badge b-{{ c.status }}">{{ status_labels[c.status] }}</span></td>
+      <td>{{ c.date_filed or "&mdash;" }}</td>
+      <td>{% if is_docket(c.docket) %}<a href="{{ dis_url(c.docket) }}" target="_blank" rel="noopener">Case record &#8599;</a>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}
+  <p class="muted">No pending cases on file. <a href="/import">Import</a> one to get started.</p>
+  {% endif %}
+</div>
+
+<div class="card" id="tariffs">
+  <h3>Tariffs <span class="muted">({{ tariffs|length }})</span></h3>
+  {% if tariffs %}
+  <div class="wrap"><table>
+    <tr><th>Name</th><th>Operating company</th><th>Status</th><th>Disposition</th><th>Authority</th></tr>
+    {% for r in tariffs %}
+    <tr>
+      <td>{{ r.name }}</td>
+      <td>{% if r.operating_company %}{{ r.operating_company }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+      <td>{{ rider_status_labels[r.status] }}</td>
+      <td><span class="badge b-{% if r.disposition == 'roll_into_base' %}roll{% elif r.disposition == 'standalone' %}stand{% else %}undec{% endif %}">{{ disp_labels[r.disposition] }}</span></td>
+      <td>{% if r.authority_docket and is_docket(r.authority_docket) %}<a href="{{ dis_url(r.authority_docket) }}" target="_blank" rel="noopener">{{ r.authority_docket }} &#8599;</a>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}
+  <p class="muted">No tariffs inventoried yet. Add them on the <a href="/import">Import</a> page.</p>
+  {% endif %}
+</div>
+
+<div class="card" id="riders">
+  <h3>Riders <span class="muted">({{ riders|length }})</span></h3>
+  {% if riders %}
+  <div class="wrap"><table>
+    <tr><th>Name</th><th>Operating company</th><th>Status</th><th>Annual revenue</th><th>Disposition</th><th>Authority</th></tr>
+    {% for r in riders %}
+    <tr>
+      <td>{{ r.name }}</td>
+      <td>{% if r.operating_company %}{{ r.operating_company }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+      <td>{{ rider_status_labels[r.status] }}</td>
+      <td>{% if r.annual_revenue is not none %}${{ "%.1f"|format(r.annual_revenue) }}M{% else %}&mdash;{% endif %}</td>
+      <td><span class="badge b-{% if r.disposition == 'roll_into_base' %}roll{% elif r.disposition == 'standalone' %}stand{% else %}undec{% endif %}">{{ disp_labels[r.disposition] }}</span></td>
+      <td>{% if r.authority_docket and is_docket(r.authority_docket) %}<a href="{{ dis_url(r.authority_docket) }}" target="_blank" rel="noopener">{{ r.authority_docket }} &#8599;</a>{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}
+  <p class="muted">No riders inventoried yet. Add them on the <a href="/import">Import</a> page.</p>
+  {% endif %}
+</div>
+
+<div class="card" id="build">
+  <h3>Base Rate Case Build</h3>
+  <p class="muted">Readiness checklist for {{ utility.name }}'s next filing. The full testimony builder arrives in v2.</p>
+  <ul class="check">
+    <li>{% if n_positions > 0 %}&#9989;{% else %}&#11036;{% endif %} Three-way comparison data on file ({{ n_positions }} positions)</li>
+    <li>{% if n_undecided == 0 and (tariffs|length + riders|length) > 0 %}&#9989;{% else %}&#11036;{% endif %} Tariff/rider dispositions decided{% if n_undecided > 0 %} ({{ n_undecided }} undecided){% endif %}</li>
+    <li>&#11036; Excel workpapers imported via <a href="/import">Import</a></li>
+    <li>&#11036; Testimony &amp; exhibits <span class="muted">(v2 module)</span></li>
+  </ul>
+  <p><a class="btn btn-sec" href="/import">Go to Import</a></p>
+  <h3 style="margin-top:18px">Legal authorities</h3>
+  <p class="muted">The statutes and rules counsel builds the filing under.</p>
+  <div class="tabgrid">
+    {% for l in legal %}
+    <a class="tabbox ext" href="{{ l.url }}" target="_blank" rel="noopener"><div class="t">{{ l.name }}</div><div class="d">{{ l.hint }}</div></a>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

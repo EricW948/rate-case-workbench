@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+ratecase.db
+ratecase.db-*
+tests/__pycache__/
+.pytest_cache/
+.DS_Store

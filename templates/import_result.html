@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Import check - Rate Case Workbench{% endblock %}
+{% block content %}
+<h2 style="margin-top:0">{{ label }} - check results</h2>
+
+{% if errors %}
+  <div class="alert alert-err">
+    <strong>Not quite - {{ errors|length }} thing{{ 's' if errors|length != 1 }} to fix before I can load this.</strong>
+    Nothing was saved. Fix the file and upload it again.
+    <ul class="errs">
+      {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+    </ul>
+  </div>
+  <p><a class="btn btn-sec" href="/import">Back to Import</a></p>
+{% else %}
+  <div class="alert alert-ok">
+    <strong>All {{ rows|length }} row{{ 's' if rows|length != 1 }} look good.</strong> Here's what will be loaded:
+  </div>
+  <div class="card wrap">
+  <table>
+    <tr>{% for k in rows[0].keys() %}<th>{{ k.replace("_"," ").title() }}</th>{% endfor %}</tr>
+    {% for r in rows %}
+    <tr>{% for v in r.values() %}<td>{{ v if v is not none else "-" }}</td>{% endfor %}</tr>
+    {% endfor %}
+  </table>
+  </div>
+  <form action="/import/{{ kind }}/confirm" method="post">
+    <input type="hidden" name="token" value="{{ token }}">
+    <button class="btn" type="submit">Yes, load {{ rows|length }} row{{ 's' if rows|length != 1 }}</button>
+    <a class="btn btn-sec" href="/import">Cancel</a>
+  </form>
+{% endif %}
+{% endblock %}

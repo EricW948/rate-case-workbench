@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Import done - Rate Case Workbench{% endblock %}
+{% block content %}
+<h2 style="margin-top:0">Done!</h2>
+<div class="alert alert-ok"><strong>{{ count }} row{{ 's' if count != 1 }} of {{ label|lower }} loaded.</strong></div>
+<p><a class="btn" href="/">Back to dashboard</a> <a class="btn btn-sec" href="/import">Import more</a></p>
+{% endblock %}

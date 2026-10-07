@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}{{ case.docket }} - Rate Case Workbench{% endblock %}
+{% block content %}
+<p class="muted" style="margin-top:0"><a href="/cases">&larr; All cases</a></p>
+<h2 style="margin-top:0">{{ case.docket }}</h2>
+<p>
+  <span class="badge b-{{ case.case_type }}">{{ type_labels[case.case_type] }}</span>
+  <span class="badge b-{{ case.status }}">{{ status_labels[case.status] }}</span>
+  {% if is_docket(case.docket) %}<a href="{{ dis_url(case.docket) }}" target="_blank" rel="noopener" class="btn btn-sec" style="padding:6px 14px;font-size:13px">Open in PUCO DIS &#8599;</a>{% endif %}
+</p>
+<div class="card">
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">
+    <div><span class="muted">Utility</span><br><strong>{{ case.utility.name }}</strong></div>
+    <div><span class="muted">Filed</span><br><strong>{{ case.date_filed or "Unknown" }}</strong></div>
+    <div><span class="muted">Staff report</span><br><strong>{{ case.date_staff_report or "Unknown" }}</strong></div>
+    <div><span class="muted">Final order</span><br><strong>{{ case.date_order or "Not yet" }}</strong></div>
+    <div><span class="muted">Test year</span><br><strong>{{ case.test_year or "Unknown" }}</strong></div>
+    <div><span class="muted">Date certain</span><br><strong>{{ case.date_certain or "Unknown" }}</strong></div>
+  </div>
+  {% if case.notes %}<p class="muted" style="margin-bottom:0">{{ case.notes }}</p>{% endif %}
+</div>
+
+<h3>As-filed vs. Staff vs. final</h3>
+<p class="muted">What the utility asked for, what PUCO Staff recommended, and where it landed. Money is in millions of dollars per year.</p>
+{% for period, cols in grid.items() %}
+<div class="card">
+  <h3>{{ period }}</h3>
+  <div class="wrap">
+  <table>
+    <tr><th></th>
+      {% for stage, pos in cols %}<th>{{ stage_labels[stage] }}</th>{% endfor %}
+    </tr>
+    <tr><td><strong>Revenue requirement</strong></td>
+      {% for stage, pos in cols %}<td>{% if pos and pos.revenue_requirement is not none %}${{ "%.1f"|format(pos.revenue_requirement) }}M{% else %}<span class="muted">-</span>{% endif %}</td>{% endfor %}</tr>
+    <tr><td><strong>Revenue change</strong></td>
+      {% for stage, pos in cols %}<td>{% if pos and pos.revenue_change is not none %}{% if pos.revenue_change >= 0 %}+{% endif %}${{ "%.1f"|format(pos.revenue_change) }}M{% else %}<span class="muted">-</span>{% endif %}</td>{% endfor %}</tr>
+    <tr><td><strong>ROE</strong></td>
+      {% for stage, pos in cols %}<td>{% if pos and pos.roe is not none %}{{ "%.2f"|format(pos.roe) }}%{% else %}<span class="muted">-</span>{% endif %}</td>{% endfor %}</tr>
+    <tr><td><strong>Capital structure</strong></td>
+      {% for stage, pos in cols %}<td>{% if pos and pos.capital_structure %}{{ pos.capital_structure }}{% else %}<span class="muted">-</span>{% endif %}</td>{% endfor %}</tr>
+    <tr><td><strong>Rate base</strong></td>
+      {% for stage, pos in cols %}<td>{% if pos and pos.rate_base is not none %}${{ "%.1f"|format(pos.rate_base) }}M{% else %}<span class="muted">-</span>{% endif %}</td>{% endfor %}</tr>
+  </table>
+  </div>
+  {% for stage, pos in cols %}
+    {% if pos and pos.notes %}<p class="muted" style="margin:6px 0 0"><strong>{{ stage_labels[stage] }} note:</strong> {{ pos.notes }}</p>{% endif %}
+  {% endfor %}
+</div>
+{% endfor %}
+
+{% if case.documents %}
+<div class="card">
+  <h3>Source documents</h3>
+  <table>
+    <tr><th>Type</th><th>Pages</th><th>File</th></tr>
+    {% for d in case.documents %}
+    <tr><td>{{ d.doc_type.replace("_"," ").title() }}</td><td>{{ d.page_count or "-" }}</td>
+        <td class="muted">{{ d.file_path or "path not recorded" }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3>Discovery &amp; experts <span class="muted" style="font-weight:400">({{ case.discovery|length }} items, {{ case.experts|length }} experts)</span></h3>
+  {% if case.discovery %}
+  <div class="wrap"><table>
+    <tr><th>Item</th><th>Due</th><th>Assigned to</th><th>Status</th></tr>
+    {% for r in case.discovery|sort(attribute="due_date") %}
+    <tr>
+      <td><strong>{{ dr_type_labels[r.request_type] }}</strong> from {{ r.requesting_party }}{% if r.set_number or r.number %} <span class="muted">{{ r.set_number }} {{ r.number }}</span>{% endif %}</td>
+      <td>{{ r.due_date or "—" }}</td>
+      <td>{{ r.assigned_to or "—" }}</td>
+      <td><span class="badge {% if r.status == 'complete' %}b-decided{% elif r.status == 'withdrawn' %}b-historical{% elif r.status == 'open' %}b-pending{% else %}b-stipulated{% endif %}">{{ dr_status_labels[r.status] }}</span></td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% endif %}
+  {% if case.experts %}
+  <div class="wrap" style="margin-top:10px"><table>
+    <tr><th>Expert</th><th>Topic</th><th>Side</th><th>Testimony due</th><th>Status</th></tr>
+    {% for e in case.experts|sort(attribute="testimony_due") %}
+    <tr>
+      <td><strong>{{ e.name }}</strong>{% if e.firm %}<br><span class="muted">{{ e.firm }}</span>{% endif %}</td>
+      <td>{{ e.topic or "—" }}</td>
+      <td>{{ expert_side_labels[e.side] }}</td>
+      <td>{{ e.testimony_due or "—" }}</td>
+      <td><span class="badge {% if e.status in ('filed','testified') %}b-decided{% elif e.status == 'withdrawn' %}b-historical{% else %}b-pending{% endif %}">{{ expert_status_labels[e.status] }}</span></td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% endif %}
+  {% if not case.discovery and not case.experts %}
+  <p class="muted" style="margin-bottom:0">No discovery tracked for this case yet.</p>
+  {% endif %}
+  <p style="margin:10px 0 0"><a href="/discovery?case_id={{ case.id }}" class="btn btn-sec" style="padding:6px 14px;font-size:13px">Open in command center</a></p>
+</div>
+
+<div class="card">
+  <h3>Scenario workbench <span class="muted" style="font-weight:400">({{ case.scenarios|length }} scenario{{ 's' if case.scenarios|length != 1 }})</span></h3>
+  <p class="muted" style="margin-top:-6px">Run the methodologies against each other — test period, rate base measurement, ROE method, capital structure, adjustments — and compare the revenue requirement side by side.</p>
+  <p style="margin:10px 0 0"><a href="/cases/{{ case.id }}/scenarios" class="btn btn-sec" style="padding:6px 14px;font-size:13px">Open scenario workbench</a></p>
+</div>
+{% endblock %}

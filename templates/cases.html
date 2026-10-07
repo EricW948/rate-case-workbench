@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Cases - Rate Case Workbench{% endblock %}
+{% block content %}
+<h2 style="margin-top:0">Rate cases</h2>
+<p class="muted">Every base-rate case in the system, newest first. Open one to see the as-filed vs. Staff vs. final numbers.</p>
+<div class="card wrap">
+<table>
+  <tr><th>Docket</th><th>Utility</th><th>Type</th><th>Status</th><th>Filed</th><th>Decided</th></tr>
+  {% for c in cases %}
+  <tr>
+    <td><a href="/cases/{{ c.id }}"><strong>{{ c.docket }}</strong></a></td>
+    <td>{{ c.utility.name }}</td>
+    <td><span class="badge b-{{ c.case_type }}">{{ type_labels[c.case_type] }}</span></td>
+    <td><span class="badge b-{{ c.status }}">{{ status_labels[c.status] }}</span></td>
+    <td>{{ c.date_filed or "-" }}</td>
+    <td>{{ c.date_order or "-" }}</td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

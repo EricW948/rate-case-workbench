@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Discovery command center - Rate Case Workbench{% endblock %}
+{% block content %}
+<h2 style="margin-top:0">Discovery command center</h2>
+<p class="muted">Every DR, interrogatory, deposition, and expert witness — who owns it, what's due, and where the bottlenecks are. Load items with the <a href="/import">Discovery log</a> and <a href="/import">Expert roster</a> templates.</p>
+
+<div class="card">
+  <h3>Where the bottlenecks are</h3>
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">
+    <div>
+      <div class="big" style="color:{% if attention.overdue %}#b91c1c{% else %}#166534{% endif %}">{{ attention.overdue|length }}</div>
+      <div class="muted">Overdue responses</div>
+    </div>
+    <div>
+      <div class="big" style="color:{% if attention.due_soon %}#b45309{% else %}inherit{% endif %}">{{ attention.due_soon|length }}</div>
+      <div class="muted">Due within 7 days</div>
+    </div>
+    <div>
+      <div class="big">{{ attention.unassigned|length }}</div>
+      <div class="muted">Unassigned items</div>
+    </div>
+    <div>
+      <div class="big">{{ attention.expert_due|length }}</div>
+      <div class="muted">Expert testimony due within 30 days</div>
+    </div>
+  </div>
+  {% if attention.overdue %}
+  <h3 style="margin-top:12px;color:#b91c1c">Overdue — needs an owner today</h3>
+  <div class="wrap"><table>
+    <tr><th>Case</th><th>Item</th><th>Due</th><th>Assigned to</th><th>Status</th></tr>
+    {% for r in attention.overdue %}
+    <tr>
+      <td><a href="/cases/{{ r.case.id }}">{{ r.case.docket }}</a></td>
+      <td><strong>{{ dr_type_labels[r.request_type] }}</strong> from {{ r.requesting_party }}{% if r.set_number or r.number %} <span class="muted">{{ r.set_number }} {{ r.number }}</span>{% endif %}</td>
+      <td style="color:#b91c1c;font-weight:700">{{ r.due_date }}</td>
+      <td>{{ r.assigned_to or "— unassigned —" }}</td>
+      <td><span class="badge b-pending">{{ dr_status_labels[r.status] }}</span></td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>Discovery items ({{ items|length }})</h3>
+  <form method="get" action="/discovery" style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+    <label class="muted">Status<br>
+      <select name="status">
+        <option value="">All</option>
+        {% for s in dr_statuses %}
+        <option value="{{ s }}" {% if f_status == s %}selected{% endif %}>{{ dr_status_labels[s] }}</option>
+        {% endfor %}
+      </select></label>
+    <label class="muted">Assigned to<br>
+      <select name="assignee">
+        <option value="">Everyone</option>
+        <option value="__unassigned__" {% if f_assignee == "__unassigned__" %}selected{% endif %}>— Unassigned —</option>
+        {% for a in assignees %}
+        <option value="{{ a }}" {% if f_assignee == a %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select></label>
+    <label class="muted">Case<br>
+      <select name="case_id">
+        <option value="">All cases</option>
+        {% for c in cases %}
+        <option value="{{ c.id }}" {% if f_case == c.id|string %}selected{% endif %}>{{ c.docket }}</option>
+        {% endfor %}
+      </select></label>
+    <button class="btn btn-sec" type="submit" style="padding:6px 14px">Filter</button>
+  </form>
+  {% if items %}
+  <div class="wrap"><table>
+    <tr><th>Case</th><th>Item</th><th>Served</th><th>Due</th><th>Assigned to</th><th>Status</th><th>Response</th></tr>
+    {% for r in items %}
+    <tr>
+      <td><a href="/cases/{{ r.case.id }}">{{ r.case.docket }}</a></td>
+      <td><strong>{{ dr_type_labels[r.request_type] }}</strong> from {{ r.requesting_party }}{% if r.set_number or r.number %}<br><span class="muted">{{ r.set_number }} {{ r.number }}</span>{% endif %}</td>
+      <td>{{ r.served_date or "—" }}</td>
+      <td {% if r in attention.overdue %}style="color:#b91c1c;font-weight:700"{% elif r in attention.due_soon %}style="color:#b45309;font-weight:700"{% endif %}>{{ r.due_date or "—" }}</td>
+      <td>{{ r.assigned_to or "—" }}</td>
+      <td><span class="badge {% if r.status == 'complete' %}b-decided{% elif r.status == 'withdrawn' %}b-historical{% elif r.status == 'open' %}b-pending{% else %}b-stipulated{% endif %}">{{ dr_status_labels[r.status] }}</span></td>
+      <td>{{ r.response_summary or "—" }}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}
+  <p class="muted">No discovery items on file yet. Import the Discovery log template to get started.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>Expert witnesses ({{ experts|length }})</h3>
+  {% if experts %}
+  <div class="wrap"><table>
+    <tr><th>Case</th><th>Name</th><th>Topic</th><th>Side</th><th>Testimony due</th><th>Status</th><th>Assigned to</th></tr>
+    {% for e in experts %}
+    <tr>
+      <td><a href="/cases/{{ e.case.id }}">{{ e.case.docket }}</a></td>
+      <td><strong>{{ e.name }}</strong>{% if e.firm %}<br><span class="muted">{{ e.firm }}</span>{% endif %}</td>
+      <td>{{ e.topic or "—" }}</td>
+      <td>{{ expert_side_labels[e.side] }}</td>
+      <td {% if e in attention.expert_due %}style="color:#b45309;font-weight:700"{% endif %}>{{ e.testimony_due or "—" }}</td>
+      <td><span class="badge {% if e.status in ('filed','testified') %}b-decided{% elif e.status == 'withdrawn' %}b-historical{% elif e.status == 'drafting' %}b-stipulated{% else %}b-pending{% endif %}">{{ expert_status_labels[e.status] }}</span></td>
+      <td>{{ e.assigned_to or "—" }}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}
+  <p class="muted">No experts on file yet. Import the Expert roster template to get started.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Scenario workbench - {{ case.docket }}{% endblock %}
+{% block content %}
+<p class="muted" style="margin-top:0"><a href="/cases/{{ case.id }}">&larr; {{ case.docket }}</a></p>
+<h2 style="margin-top:0">Scenario workbench</h2>
+<p class="muted">Every methodology is a lever on one formula:<br>
+<strong>Revenue requirement = rate base &times; overall return + operating expenses + depreciation + taxes + adjustments.</strong>
+Build a scenario per methodology bundle, stamp each with Eric's read on whether the Commission will buy it, and compare them side by side for the maximum defensible return.</p>
+
+{% if errors %}
+<div class="alert alert-err"><strong>That scenario didn't save — here's why:</strong>
+<ul class="errs">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+{% if scenarios %}
+<div class="card">
+  <h3>Side by side ({{ scenarios|length }} scenario{{ 's' if scenarios|length != 1 }})</h3>
+  <div class="wrap"><table>
+    <tr><th>Scenario</th><th>Test period</th><th>Rate base</th><th>ROE</th><th>Equity</th>
+        <th>Overall return</th><th>Adjustments</th><th>Revenue req.</th><th>&Delta; vs as-filed</th><th>Litigation risk</th></tr>
+    {% for s, m in scenarios %}
+    <tr {% if loop.first %}style="background:#f0fdf4"{% endif %}>
+      <td><strong>{{ s.name }}</strong>{% if loop.first %} <span class="badge b-decided">Top RR</span>{% endif %}<br>
+        <span class="muted">{{ rb_method_labels[s.rate_base_method] }}{% if s.date_certain %}, date certain {{ s.date_certain }}{% endif %}</span></td>
+      <td>{{ test_period_labels[s.test_period_type] }}</td>
+      <td>${{ "%.1f"|format(s.rate_base) }}M</td>
+      <td>{{ "%.2f"|format(s.roe) }}% <span class="muted">({{ roe_method_labels[s.roe_method] }})</span></td>
+      <td>{{ "%.1f"|format(s.equity_ratio) }}%</td>
+      <td>{{ "%.2f"|format(m.ror_pct) }}%</td>
+      <td>{% if m.adj_total >= 0 %}+{% endif %}${{ "%.1f"|format(m.adj_total) }}M</td>
+      <td><strong>${{ "%.1f"|format(m.revenue_requirement) }}M</strong></td>
+      <td>{% if as_filed and as_filed.revenue_requirement is not none %}{% set d = m.revenue_requirement - as_filed.revenue_requirement %}{% if d >= 0 %}+{% endif %}${{ "%.1f"|format(d) }}M{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td><span class="badge {% if s.risk_level == 'low' %}b-decided{% elif s.risk_level == 'high' %}b-pending{% elif s.risk_level == 'medium' %}b-stipulated{% else %}b-historical{% endif %}">{{ risk_labels[s.risk_level] }}</span></td>
+    </tr>
+    {% endfor %}
+    {% if as_filed %}
+    <tr style="background:#f8fafc">
+      <td><strong>As filed</strong> <span class="muted">(reference)</span></td>
+      <td colspan="6"><span class="muted">{{ case.docket }} as filed</span></td>
+      <td><strong>${{ "%.1f"|format(as_filed.revenue_requirement) }}M</strong></td>
+      <td>—</td><td>—</td>
+    </tr>
+    {% endif %}
+  </table></div>
+  <p class="muted" style="margin-bottom:0">Scenarios are sorted by revenue requirement, highest first. The green row is the current max — check its risk stamp before falling in love with it.</p>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3>ROE sensitivity — basis-point toggles</h3>
+  <p class="muted" style="margin-top:-6px">Pick a scenario, set a range, and flip through ROE in basis-point steps — same model, every answer at once.</p>
+  {% if sens_errors %}
+  <div class="alert alert-err"><ul class="errs">{% for e in sens_errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+  {% endif %}
+  <form method="get" action="/cases/{{ case.id }}/scenarios" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:10px">
+    <label class="muted">Scenario<br><select name="sens">
+      {% for s, m in scenarios %}<option value="{{ s.id }}" {% if sens_q.sens == s.id|string %}selected{% endif %}>{{ s.name }} ({{ "%.2f"|format(s.roe) }}%)</option>{% endfor %}
+    </select></label>
+    <label class="muted">ROE low %<br><input name="low" value="{{ sens_q.low }}" style="width:90px" placeholder="9.0"></label>
+    <label class="muted">ROE high %<br><input name="high" value="{{ sens_q.high }}" style="width:90px" placeholder="10.5"></label>
+    <label class="muted">Step (bps)<br><input name="step" value="{{ sens_q.step }}" style="width:70px" placeholder="10"></label>
+    <button class="btn btn-sec" type="submit" style="padding:6px 14px">Run it</button>
+  </form>
+  {% if sens %}
+  <p><strong>Every 10 basis points of ROE = {% if sens.per_10bp >= 0 %}+{% endif %}${{ "%.2f"|format(sens.per_10bp) }}M</strong> <span class="muted">of revenue requirement on this model.</span></p>
+  <div class="wrap"><table>
+    <tr><th>ROE</th><th>Revenue req.</th><th>&Delta; vs {{ "%.2f"|format(sens.scenario.roe) }}% base</th>{% if sens.af_rr %}<th>&Delta; vs as-filed</th>{% endif %}</tr>
+    {% for roe, rr, d in sens.rows %}
+    <tr {% if roe == sens.scenario.roe %}style="background:#f0fdf4"{% endif %}>
+      <td><strong>{{ "%.2f"|format(roe) }}%</strong>{% if roe == sens.scenario.roe %} <span class="badge b-decided">base</span>{% endif %}</td>
+      <td><strong>${{ "%.1f"|format(rr) }}M</strong></td>
+      <td>{% if d >= 0 %}+{% endif %}${{ "%.1f"|format(d) }}M</td>
+      {% if sens.af_rr %}<td>{% set da = rr - sens.af_rr %}{% if da >= 0 %}+{% endif %}${{ "%.1f"|format(da) }}M</td>{% endif %}
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% elif scenarios and not sens_errors %}
+  <p class="muted" style="margin-bottom:0">Choose a scenario and a range above — e.g. 9.0 to 10.5 in 10bp steps — and every ROE in between gets priced.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>Build a scenario</h3>
+  {% if prefilled %}
+  <p class="alert alert-ok" style="margin-top:0">Fields below are prefilled from the as-filed numbers — change one lever (say, ROE to 9.5) and save to see the new revenue requirement.</p>
+  {% endif %}
+  <form method="post" action="/cases/{{ case.id }}/scenarios">
+    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
+      <label>Scenario name<br><input name="name" value="{{ form.get('name','') }}" style="width:100%" placeholder="Year-end RB, 10.1% ROE"></label>
+      <label>Test period<br><select name="test_period_type">
+        {% for k, v in test_period_labels.items() %}<option value="{{ k }}" {% if form.get('test_period_type','historic_adjusted') == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+      <label>Rate base measured<br><select name="rate_base_method">
+        {% for k, v in rb_method_labels.items() %}<option value="{{ k }}" {% if form.get('rate_base_method','average_13mo') == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+      <label>Date certain <span class="muted">(optional)</span><br><input name="date_certain" value="{{ form.get('date_certain','') }}" placeholder="2026-09-30" style="width:100%"></label>
+      <label>ROE method<br><select name="roe_method">
+        {% for k, v in roe_method_labels.items() %}<option value="{{ k }}" {% if form.get('roe_method','dcf') == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+      <label>ROE %<br><input name="roe" value="{{ form.get('roe', prefill.roe) }}" style="width:100%" placeholder="10.10"></label>
+      <label>Equity ratio %<br><input name="equity_ratio" value="{{ form.get('equity_ratio', prefill.equity_ratio or '50') }}" style="width:100%"></label>
+      <label>Cost of debt %<br><input name="cost_of_debt" value="{{ form.get('cost_of_debt', prefill.cost_of_debt) }}" style="width:100%" placeholder="5.25"></label>
+      <label>Rate base $M<br><input name="rate_base" value="{{ form.get('rate_base', prefill.rate_base) }}" style="width:100%" placeholder="1200"></label>
+      <label>Operating expenses $M<br><input name="opex" value="{{ form.get('opex', prefill.opex) }}" style="width:100%" placeholder="0"></label>
+      <label>Depreciation $M<br><input name="depreciation" value="{{ form.get('depreciation', prefill.depreciation) }}" style="width:100%" placeholder="0"></label>
+      <label>Taxes $M<br><input name="taxes" value="{{ form.get('taxes', prefill.taxes) }}" style="width:100%" placeholder="0"></label>
+    </div>
+    <p style="margin:12px 0 4px"><label>Adjustments <span class="muted">— one per line, pasted from Excel is fine: <code>name | amount</code>, or <code>name | category | amount</code>. Amounts are $M, + or −. Categories: annualization, normalization, known_measurable, other.</span><br>
+    <textarea name="adjustments_text" rows="4" style="width:100%">{{ form.get('adjustments_text','') }}</textarea></label></p>
+    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
+      <label>Litigation risk <span class="muted">(Eric's call)</span><br><select name="risk_level">
+        {% for k, v in risk_labels.items() %}<option value="{{ k }}" {% if form.get('risk_level','unrated') == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+      <label>Risk note<br><input name="risk_note" value="{{ form.get('risk_note','') }}" style="width:100%" placeholder="Staff accepted this in 21-0887"></label>
+    </div>
+    <p><label>Notes<br><input name="notes" value="{{ form.get('notes','') }}" style="width:100%"></label></p>
+    <button class="btn" type="submit">Save scenario</button>
+  </form>
+</div>
+
+{% for s, m in scenarios %}
+<div class="card">
+  <h3>{{ s.name }}
+    <span class="badge {% if s.risk_level == 'low' %}b-decided{% elif s.risk_level == 'high' %}b-pending{% elif s.risk_level == 'medium' %}b-stipulated{% else %}b-historical{% endif %}">{{ risk_labels[s.risk_level] }}</span></h3>
+  <p class="muted" style="margin-top:-6px">{{ test_period_labels[s.test_period_type] }} &middot; {{ rb_method_labels[s.rate_base_method] }}{% if s.date_certain %} &middot; date certain {{ s.date_certain }}{% endif %} &middot; ROE {{ "%.2f"|format(s.roe) }}% via {{ roe_method_labels[s.roe_method] }}</p>
+  <div class="wrap"><table>
+    <tr><th></th><th>$M / yr</th></tr>
+    <tr><td>Rate base ${{ "%.1f"|format(s.rate_base) }}M &times; {{ "%.2f"|format(m.ror_pct) }}% overall return</td><td>${{ "%.1f"|format(m.return_on_rb) }}M</td></tr>
+    <tr><td>Operating expenses</td><td>${{ "%.1f"|format(s.opex or 0) }}M</td></tr>
+    <tr><td>Depreciation</td><td>${{ "%.1f"|format(s.depreciation or 0) }}M</td></tr>
+    <tr><td>Taxes</td><td>${{ "%.1f"|format(s.taxes or 0) }}M</td></tr>
+    {% for a in s.adjustments %}
+    <tr><td>{{ a.name }} <span class="muted">({{ adj_cat_labels[a.category] }})</span></td><td>{% if a.amount >= 0 %}+{% endif %}${{ "%.1f"|format(a.amount) }}M</td></tr>
+    {% endfor %}
+    <tr><td><strong>Revenue requirement</strong></td><td><strong>${{ "%.1f"|format(m.revenue_requirement) }}M</strong></td></tr>
+  </table></div>
+  {% if s.risk_note %}<p class="muted"><strong>Eric's read:</strong> {{ s.risk_note }}</p>{% endif %}
+  {% if s.notes %}<p class="muted">{{ s.notes }}</p>{% endif %}
+  <form method="post" action="/scenarios/{{ s.id }}/risk" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:8px">
+    <label class="muted">Will they buy it?<br><select name="risk_level">
+      {% for k, v in risk_labels.items() %}<option value="{{ k }}" {% if s.risk_level == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+    <label class="muted">Note<br><input name="risk_note" value="{{ s.risk_note or '' }}" style="width:280px"></label>
+    <button class="btn btn-sec" type="submit" style="padding:6px 14px">Stamp it</button>
+  </form>
+  <form method="post" action="/scenarios/{{ s.id }}/delete" style="margin-top:8px"
+        onsubmit="return confirm('Delete this scenario?')">
+    <button type="submit" style="background:none;border:0;color:#b91c1c;cursor:pointer;font-size:13px;padding:0">Delete scenario</button>
+  </form>
+</div>
+{% endfor %}
+{% endblock %}

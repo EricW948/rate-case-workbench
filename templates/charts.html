@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Compare utilities - Rate Case Workbench{% endblock %}
+{% block content %}
+<h2 style="margin-top:0">How the utilities compare</h2>
+<p class="muted">Requested vs. decided, side by side. These charts work offline - no internet needed.</p>
+
+<div class="card">
+  <h3>Revenue change: what they asked for vs. what they got ($M / yr)</h3>
+  {{ rev_legend|safe }}
+  {{ rev_svg|safe }}
+  <p class="muted">AEP 25-0392's final bar is the gross figure (+$320.1M); net new base-rate revenue was +$11.1M after rider roll-ins. Duke 17-0032 ended in a decrease. AES 25-0958 shows Test Year 1 (2027); its stipulation isn't a final order yet.</p>
+</div>
+
+<div class="card">
+  <h3>ROE: requested vs. authorized / settled (%)</h3>
+  {{ roe_legend|safe }}
+  {{ roe_svg|safe }}
+  <p class="muted">Ohio's recent landing zone: 9.50-9.999% for electric distribution.</p>
+</div>
+{% endblock %}

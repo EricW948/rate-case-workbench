@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Rate Case Workbench{% endblock %}
+{% block content %}
+<h2 style="margin-top:0">At a glance</h2>
+<p class="muted">Each card shows a utility's most recent case and the last return regulators signed off on.</p>
+<div class="grid">
+{% for c in cards %}
+  <div class="card">
+    <h3><a href="/utilities/{{ c.utility.id }}" style="color:inherit;text-decoration:none">{{ c.utility.name }}</a>{% if c.is_model %} <span class="badge b-model">Model utility</span>{% endif %}</h3>
+    <p class="muted" style="margin-top:-6px">{{ c.n_cases }} case{{ 's' if c.n_cases != 1 }} tracked &middot; {{ c.n_riders }} tariff{{ 's' if c.n_riders != 1 }}/rider{{ 's' if c.n_riders != 1 }}</p>
+    {% if c.latest %}
+      <p><strong>Latest case:</strong> <a href="/cases/{{ c.latest.id }}">{{ c.latest.docket }}</a><br>
+      <span class="badge b-{{ c.latest.case_type }}">{{ type_labels[c.latest.case_type] }}</span>
+      <span class="badge b-{{ c.latest.status }}">{{ status_labels[c.latest.status] }}</span></p>
+    {% else %}
+      <p class="muted">No cases yet.</p>
+    {% endif %}
+    {% if c.auth %}
+      <p><span class="muted">Last approved return</span><br>
+      {% if c.auth.roe is not none %}
+      <span class="big">{{ "%.2f"|format(c.auth.roe) }}%</span>
+      <span class="muted">ROE &middot; {{ c.auth_case.docket }}</span>
+      {% else %}
+      <span class="muted">Outcome on file for {{ c.auth_case.docket }} (no ROE recorded).</span>
+      {% endif %}
+      {% if c.auth.revenue_change is not none %}
+      <p><span class="muted">Revenue outcome</span><br>
+      <strong>{% if c.auth.revenue_change >= 0 %}+{% endif %}${{ "%.1f"|format(c.auth.revenue_change) }}M / yr</strong></p>
+      {% endif %}
+    {% else %}
+      <p class="muted">No approved return on file yet.</p>
+    {% endif %}
+  </div>
+{% endfor %}
+</div>
+{% if attention.n_open > 0 or attention.n_experts > 0 %}
+<div class="card" style="border-left:4px solid {% if attention.overdue %}#b91c1c{% elif attention.due_soon or attention.unassigned %}#b45309{% else %}#166534{% endif %}">
+  <h3><a href="/discovery" style="color:inherit;text-decoration:none">Regulatory attention</a></h3>
+  <p class="muted" style="margin-top:-6px">{{ attention.n_open }} open discovery item{{ 's' if attention.n_open != 1 }} &middot; {{ attention.n_experts }} expert{{ 's' if attention.n_experts != 1 }} tracked</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">
+    <div><span class="big" style="color:{% if attention.overdue %}#b91c1c{% else %}#166534{% endif %}">{{ attention.overdue|length }}</span><br><span class="muted">Overdue</span></div>
+    <div><span class="big">{{ attention.due_soon|length }}</span><br><span class="muted">Due within 7 days</span></div>
+    <div><span class="big">{{ attention.unassigned|length }}</span><br><span class="muted">Unassigned</span></div>
+    <div><span class="big">{{ attention.expert_due|length }}</span><br><span class="muted">Expert testimony due &le; 30 days</span></div>
+  </div>
+  {% if attention.overdue %}
+  <p style="margin:8px 0 0"><strong style="color:#b91c1c">Overdue:</strong>
+  {% for r in attention.overdue[:5] %}
+    <a href="/discovery">{{ r.case.docket }}: {{ dr_type_labels[r.request_type] }} {{ r.number }}</a> (due {{ r.due_date }}, {{ r.assigned_to or "unassigned" }}){% if not loop.last %}; {% endif %}
+  {% endfor %}
+  {% if attention.overdue|length > 5 %}<span class="muted">…and {{ attention.overdue|length - 5 }} more</span>{% endif %}</p>
+  {% elif attention.due_soon %}
+  <p class="muted" style="margin:8px 0 0">Nothing overdue. Next up: {% for r in attention.due_soon[:3] %}{{ r.case.docket }} {{ dr_type_labels[r.request_type] }} {{ r.number }} (due {{ r.due_date }}){% if not loop.last %}, {% endif %}{% endfor %}</p>
+  {% else %}
+  <p class="muted" style="margin:8px 0 0">Nothing overdue or due this week. <a href="/discovery">Open the command center</a>.</p>
+  {% endif %}
+</div>
+{% endif %}
+<div class="card">
+  <h3>How to read this</h3>
+  <p class="muted" style="margin-bottom:0"><strong>ROE</strong> is the profit rate regulators allow the utility to earn (return on equity).
+  <strong>Revenue outcome</strong> is how much annual revenue the final decision added (or cut) versus current rates.
+  Head to <a href="/charts">Compare</a> to see every utility side by side, or <a href="/import">Import</a> to add your own numbers.</p>
+</div>
+{% endblock %}
