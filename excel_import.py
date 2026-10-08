@@ -95,7 +95,7 @@ def _cell(cells, idx):
 # ---------------------------------------------------------------- validation
 
 STAGES = ["as_filed", "staff", "final_or_stip"]
-CASE_TYPES = ["historical", "prospective"]
+CASE_TYPES = ["historical", "prospective", "tariff", "rider", "other"]
 STATUSES = ["decided", "stipulated", "pending"]
 KINDS = ["tariff", "rider"]
 RIDER_STATUSES = ["effective", "proposed", "terminated"]
@@ -434,16 +434,28 @@ def load_positions(db, rows):
 
 
 def load_cases(db, rows):
-    from models import Utility
+    from models import Utility, Case
     from seed import get_or_create_case
     n = 0
     for r in rows:
         util = db.query(Utility).filter(Utility.name == r["utility"]).one()
-        get_or_create_case(db, r["docket"], util, case_type=r["case_type"], status=r["status"],
-                           date_filed=r.get("date_filed"),
-                           date_staff_report=r.get("date_staff_report"),
-                           date_order=r.get("date_order"), test_year=r.get("test_year"),
-                           date_certain=r.get("date_certain"), notes=r.get("notes"))
+        c = db.query(Case).filter(Case.docket == r["docket"]).first()
+        if not c:
+            get_or_create_case(db, r["docket"], util, case_type=r["case_type"], status=r["status"],
+                               date_filed=r.get("date_filed"),
+                               date_staff_report=r.get("date_staff_report"),
+                               date_order=r.get("date_order"), test_year=r.get("test_year"),
+                               date_certain=r.get("date_certain"), notes=r.get("notes"))
+        else:
+            # Update the existing case, but only with values actually provided -
+            # blank cells must not wipe data already in the app.
+            c.utility_id = util.id
+            c.case_type = r["case_type"]
+            c.status = r["status"]
+            for key in ("date_filed", "date_staff_report", "date_order",
+                        "test_year", "date_certain", "notes"):
+                if r.get(key):
+                    setattr(c, key, r[key])
         n += 1
     db.commit()
     return n

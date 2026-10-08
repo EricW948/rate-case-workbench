@@ -171,13 +171,15 @@ def cases_template():
             "1. One row per case. The Docket is the ID - uploading the same docket twice just updates it.",
             "2. Row 2 is an EXAMPLE - overwrite it or delete it before uploading.",
             "3. Dates are YYYY-MM-DD, e.g. 2026-04-01. Leave blank if unknown.",
-            "4. Case type: historical (traditional test-year case) or prospective (HB 15 three-year / forecasted test period plan).",
+            "4. Case type: historical (traditional test-year rate case), prospective (HB 15 three-year / forecasted test period plan),",
+            "   tariff (tariff amendment, e.g. ATA data-center tariffs), rider (rider proceedings, e.g. RDR),",
+            "   or other (any other PUCO proceeding: AAM, GCR, UNC, etc.).",
             "5. Status: decided (final order issued), stipulated (settlement filed, no order yet), or pending.",
         ],
         [
             ("Docket", "The case number, e.g. 26-0347-EL-AIR. This is how the app matches rows."),
             ("Utility", "The utility name, e.g. FirstEnergy. Must match a utility already in the app."),
-            ("Case type", "historical or prospective."),
+            ("Case type", "historical or prospective for rate cases; tariff, rider, or other for non-rate proceedings."),
             ("Status", "decided, stipulated, or pending."),
             ("Date filed", "Optional. YYYY-MM-DD."),
             ("Staff report date", "Optional. YYYY-MM-DD."),
@@ -187,7 +189,7 @@ def cases_template():
             ("Notes", "Optional."),
         ],
     )
-    headers = ["Docket", "Utility", "Case type (historical / prospective)",
+    headers = ["Docket", "Utility", "Case type (historical / prospective / tariff / rider / other)",
                "Status (decided / stipulated / pending)", "Date filed (YYYY-MM-DD, optional)",
                "Staff report date (optional)", "Order date (optional)", "Test year (optional)",
                "Date certain (optional)", "Notes (optional)"]
@@ -195,7 +197,7 @@ def cases_template():
                 ["26-0347-EL-AIR  <-- EXAMPLE: overwrite or delete this row", "FirstEnergy",
                  "prospective", "pending", "2026-05-22", "", "", "TY1 7/1/2027-6/30/2028",
                  "", "EXAMPLE ROW - delete before uploading"],
-                dropdowns={3: ["historical", "prospective"],
+                dropdowns={3: ["historical", "prospective", "tariff", "rider", "other"],
                            4: ["decided", "stipulated", "pending"]})
     return _workbook_bytes(wb)
 

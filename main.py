@@ -27,7 +27,8 @@ templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "t
 STAGE_LABELS = {"as_filed": "As filed", "staff": "Staff", "final_or_stip": "Final / stipulation"}
 STATUS_LABELS = {"decided": "Decided", "pending": "In progress",
                  "stipulated": "Settlement filed - waiting on decision"}
-TYPE_LABELS = {"historical": "Historical", "prospective": "Prospective"}
+TYPE_LABELS = {"historical": "Historical", "prospective": "Prospective",
+               "tariff": "Tariff", "rider": "Rider", "other": "Other proceeding"}
 DISP_LABELS = {"roll_into_base": "Rolls into base rates", "standalone": "Stays separate",
                "undecided": "Undecided"}
 RIDER_STATUS_LABELS = {"effective": "In rates now", "proposed": "Proposed", "terminated": "Ended"}

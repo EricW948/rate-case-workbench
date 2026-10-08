@@ -50,7 +50,7 @@ class Case(Base):
     docket = Column(String(60), unique=True, nullable=False)
     utility_id = Column(Integer, ForeignKey("utilities.id"), nullable=False)
     operating_company = Column(String(200))  # e.g. "Ohio Edison" (FirstEnergy)
-    case_type = Column(String(20), default="historical")  # historical | prospective
+    case_type = Column(String(20), default="historical")  # historical | prospective | tariff | rider | other
     status = Column(String(20), default="pending")  # decided | pending | stipulated
     date_filed = Column(String(10))        # YYYY-MM-DD
     date_staff_report = Column(String(10))  # YYYY-MM-DD
