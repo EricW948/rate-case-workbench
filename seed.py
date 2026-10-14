@@ -43,6 +43,8 @@ def get_or_create_utility(db, name, sector="electric"):
         u = Utility(name=name, sector=sector)
         db.add(u)
         db.flush()
+    if sector and u.sector != sector:
+        u.sector = sector
     ticker = TICKERS.get(name)
     if ticker and u.ticker != ticker:
         u.ticker = ticker
