@@ -28,7 +28,7 @@ def rebind_db():
 def init_db():
     from models import (  # noqa: F401  (import registers models)
         Utility, ServiceArea, Case, ThreeWayPosition, TariffRider, Document, EarnedROE,
-        DiscoveryRequest, ExpertWitness, Scenario, ScenarioAdjustment,
+        DiscoveryRequest, ExpertWitness, Scenario, ScenarioAdjustment, CustomerClass,
     )
     Base.metadata.create_all(bind=engine)
     # Lightweight migrations for DBs created before these columns existed.

@@ -525,9 +525,105 @@ def load_experts(db, rows):
     return n
 
 
+def validate_coss(file_bytes, db):
+    from models import Case
+    ws, err = _load_sheet(file_bytes)
+    if err:
+        return [], [err]
+    rows, errors = [], []
+    # (column index, label, key, required?)
+    num_cols = [(2, "Customers", "customers", True),
+                (3, "Annual kWh", "kwh_annual", True),
+                (4, "Billing kW", "kw_billing", False),
+                (5, "Alloc Rate base %", "alloc_rate_base", True),
+                (6, "Alloc O&M %", "alloc_opex", True),
+                (7, "Alloc Depreciation %", "alloc_depreciation", True),
+                (8, "Alloc Taxes %", "alloc_taxes", True),
+                (9, "Current customer $", "cur_customer_charge", False),
+                (10, "Current demand $", "cur_demand_charge", False),
+                (11, "Current energy $", "cur_energy_charge", False),
+                (12, "Proposed customer $", "prop_customer_charge", False),
+                (13, "Proposed demand $", "prop_demand_charge", False)]
+    for rn, cells in _rows(ws):
+        docket = _cell(cells, 0)
+        if not docket or not str(docket).strip():
+            errors.append(f"Row {rn}: Docket is missing - every row needs a case number like 26-0347-EL-AIR.")
+            continue
+        docket = str(docket).strip()
+        case = db.query(Case).filter(Case.docket == docket).first()
+        if not case:
+            errors.append(f"Row {rn}: I don't know a case with docket '{docket}'. "
+                          f"Add it with the Case header template first.")
+            continue
+        cname = _cell(cells, 1)
+        if not cname or not str(cname).strip():
+            errors.append(f"Row {rn}: Class name is missing - e.g. Residential.")
+            continue
+        row = {"docket": docket, "name": str(cname).strip(),
+               "notes": (str(_cell(cells, 14)).strip() if _cell(cells, 14) else None)}
+        ok = True
+        for idx, label, key, required in num_cols:
+            val, _ = _norm_number(_cell(cells, idx))
+            if val is None:
+                if required:
+                    errors.append(f"Row {rn}: {label} is missing or isn't a number - "
+                                  f"every class needs it.")
+                    ok = False
+            else:
+                if "Alloc" in label and not (0 <= val <= 100):
+                    errors.append(f"Row {rn}: {label} is {val} - allocation percentages "
+                                  f"must be between 0 and 100.")
+                    ok = False
+                elif val < 0:
+                    errors.append(f"Row {rn}: {label} is negative - that doesn't make sense here.")
+                    ok = False
+                else:
+                    row[key] = val
+        if ok:
+            rows.append(row)
+    # Allocation percentages must total 100 per component, per docket.
+    if not errors:
+        by_docket = {}
+        for r in rows:
+            by_docket.setdefault(r["docket"], []).append(r)
+        for docket, drows in by_docket.items():
+            for key, label in [("alloc_rate_base", "Rate base"), ("alloc_opex", "O&M"),
+                               ("alloc_depreciation", "Depreciation"), ("alloc_taxes", "Taxes")]:
+                total = sum(r.get(key, 0) for r in drows)
+                if abs(total - 100.0) > 0.05:
+                    errors.append(
+                        f"Docket {docket}: the {label} allocation adds up to {total:.2f}% "
+                        f"across {len(drows)} classes - it needs to total 100%.")
+    return rows, errors
+
+
+def load_coss(db, rows):
+    from models import Case, CustomerClass
+    n = 0
+    for r in rows:
+        case = db.query(Case).filter(Case.docket == r["docket"]).one()
+        c = db.query(CustomerClass).filter(
+            CustomerClass.case_id == case.id,
+            CustomerClass.name == r["name"]).first()
+        if not c:
+            c = CustomerClass(case_id=case.id, name=r["name"])
+            db.add(c)
+        # Update only with values actually provided - blank cells must not
+        # wipe data already in the app.
+        for key in ("customers", "kwh_annual", "kw_billing", "alloc_rate_base",
+                    "alloc_opex", "alloc_depreciation", "alloc_taxes",
+                    "cur_customer_charge", "cur_demand_charge", "cur_energy_charge",
+                    "prop_customer_charge", "prop_demand_charge", "notes"):
+            if r.get(key) is not None:
+                setattr(c, key, r[key])
+        n += 1
+    db.commit()
+    return n
+
+
 VALIDATORS = {"positions": validate_positions, "cases": validate_cases, "riders": validate_riders,
               "earned_roe": validate_earned_roe, "discovery": validate_discovery,
-              "experts": validate_experts}
+              "experts": validate_experts, "coss": validate_coss}
 LOADERS = {"positions": load_positions, "cases": load_cases, "riders": load_riders,
            "earned_roe": load_earned_roe, "discovery": load_discovery,
-           "experts": load_experts}
+           "experts": load_experts, "coss": load_coss}

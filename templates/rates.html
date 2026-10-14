@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Rate design - {{ case.docket }}{% endblock %}
+{% block content %}
+<p class="muted" style="margin-top:0"><a href="/cases/{{ case.id }}">&larr; {{ case.docket }}</a></p>
+<h2 style="margin-top:0">Rate design</h2>
+<p class="muted">You set the customer and demand charges — policy choices. The app solves the proposed energy charge
+as the plug: whatever is left of the class revenue requirement after customer- and demand-charge recovery, divided by annual kWh.</p>
+
+<div class="card">
+  <form method="get" action="/cases/{{ case.id }}/rates" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+    <label class="muted">Design from<br><select name="src">
+      <option value="as_filed" {% if src == "as_filed" %}selected{% endif %}>As filed</option>
+      {% for s in scenarios %}<option value="scenario:{{ s.id }}" {% if src == "scenario:" ~ s.id|string %}selected{% endif %}>Scenario: {{ s.name }}</option>{% endfor %}
+    </select></label>
+    <button class="btn btn-sec" type="submit">Apply</button>
+    <span class="muted" style="margin-left:auto"><a href="/cases/{{ case.id }}/coss?src={{ src }}">&larr; Cost of service</a> &nbsp; <a href="/cases/{{ case.id }}/bills?src={{ src }}">Bill impacts &rarr;</a></span>
+  </form>
+</div>
+
+{% if src_error %}
+<div class="alert alert-err">{{ src_error }}</div>
+{% elif not classes %}
+<div class="card"><p class="muted" style="margin:0">No customer classes yet for this case. Load them with the <a href="/import">COSS template</a>.</p></div>
+{% else %}
+{% if alloc_errors %}
+<div class="alert alert-err"><strong>Allocation problem:</strong><ul class="errs">{% for e in alloc_errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+{% endif %}
+<div class="card">
+  <h3>Designed rates — {{ src_label }}</h3>
+  <div class="wrap"><table>
+    <tr><th>Class</th><th>Class RR $M</th>
+        <th colspan="3">Current</th><th colspan="3">Proposed</th><th>Check</th></tr>
+    <tr><th></th><th></th>
+        <th>Cust $/mo</th><th>Dem $/kW</th><th>Energy $/kWh</th>
+        <th>Cust $/mo</th><th>Dem $/kW</th><th>Energy $/kWh</th><th></th></tr>
+    {% for c in classes %}
+    {% set r = class_rr.get(c.id) %}{% set d = designed.get(c.id) %}
+    <tr>
+      <td><strong>{{ c.name }}</strong></td>
+      <td>{% if r %}<strong>${{ "%.1f"|format(r.total) }}</strong>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>${{ "%.2f"|format(c.cur_customer_charge or 0) }}</td>
+      <td>${{ "%.2f"|format(c.cur_demand_charge or 0) }}</td>
+      <td>${{ "%.5f"|format(c.cur_energy_charge or 0) }}</td>
+      <td>${{ "%.2f"|format(c.prop_customer_charge or 0) }}</td>
+      <td>${{ "%.2f"|format(c.prop_demand_charge or 0) }}</td>
+      <td>{% if d and d.energy_charge is not none %}<strong>${{ "%.5f"|format(d.energy_charge) }}</strong>{% else %}<span class="muted">needs kWh</span>{% endif %}</td>
+      <td>{% if d %}<span class="muted" title="Customer ${{"%.1f"|format(d.customer_revenue)}}M + demand ${{"%.1f"|format(d.demand_revenue)}}M + energy ${{"%.1f"|format(d.energy_revenue)}}M">recovers ${{ "%.1f"|format(d.check_total) }}M</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  <p class="muted" style="margin-bottom:0">The "recovers" column should match class RR — if it doesn't, the energy charge couldn't be solved (missing kWh). Proposed customer and demand charges come from your COSS upload; change them there and re-upload to re-solve.</p>
+</div>
+{% endif %}
+{% endblock %}

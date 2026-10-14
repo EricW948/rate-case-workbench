@@ -65,6 +65,8 @@ class Case(Base):
     discovery = relationship("DiscoveryRequest", back_populates="case", cascade="all, delete-orphan")
     experts = relationship("ExpertWitness", back_populates="case", cascade="all, delete-orphan")
     scenarios = relationship("Scenario", back_populates="case", cascade="all, delete-orphan")
+    customer_classes = relationship("CustomerClass", back_populates="case",
+                                    cascade="all, delete-orphan")
 
 
 class ThreeWayPosition(Base):
@@ -209,3 +211,41 @@ class ScenarioAdjustment(Base):
     amount = Column(Float, default=0)  # $M
 
     scenario = relationship("Scenario", back_populates="adjustments")
+
+
+class CustomerClass(Base):
+    """One customer class in a case's cost-of-service study.
+
+    Holds test-year billing determinants, COSS allocation percentages
+    (which must sum to 100 per component across the case's classes),
+    and current + proposed rate elements. The proposed energy charge is
+    always computed by the engine (it is the plug that recovers the
+    class revenue requirement after customer and demand charges).
+    """
+    __tablename__ = "customer_classes"
+    id = Column(Integer, primary_key=True)
+    case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
+    name = Column(String(200), nullable=False)  # e.g. "Residential"
+    sort_order = Column(Integer, default=0)
+    # Billing determinants (test year, weather-normalized)
+    customers = Column(Float)      # average customer count
+    kwh_annual = Column(Float)     # total annual kWh
+    kw_billing = Column(Float)     # billing demand kW (demand-metered classes)
+    # COSS allocation percentages — sum to 100 per component across classes
+    alloc_rate_base = Column(Float)    # %
+    alloc_opex = Column(Float)         # %
+    alloc_depreciation = Column(Float) # %
+    alloc_taxes = Column(Float)        # %
+    # Current rate elements
+    cur_customer_charge = Column(Float)  # $/customer/month
+    cur_demand_charge = Column(Float)    # $/kW
+    cur_energy_charge = Column(Float)    # $/kWh
+    # Proposed rate elements (policy inputs; energy charge is computed)
+    prop_customer_charge = Column(Float)  # $/customer/month
+    prop_demand_charge = Column(Float)     # $/kW
+    notes = Column(Text)
+
+    case = relationship("Case", back_populates="customer_classes")
+
+    __table_args__ = (UniqueConstraint("case_id", "name",
+                                      name="uq_customer_class_case_name"),)

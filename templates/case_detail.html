@@ -101,4 +101,14 @@
   <p class="muted" style="margin-top:-6px">Run the methodologies against each other — test period, rate base measurement, ROE method, capital structure, adjustments — and compare the revenue requirement side by side.</p>
   <p style="margin:10px 0 0"><a href="/cases/{{ case.id }}/scenarios" class="btn btn-sec" style="padding:6px 14px;font-size:13px">Open scenario workbench</a></p>
 </div>
+
+<div class="card">
+  <h3>Cost of service &amp; rate design <span class="muted" style="font-weight:400">({{ case.customer_classes|length }} class{{ 'es' if case.customer_classes|length != 1 }})</span></h3>
+  <p class="muted" style="margin-top:-6px">Allocate the revenue requirement to customer classes, design the rates that recover it, and see the bill impacts before intervenors do.</p>
+  <p style="margin:10px 0 0;display:flex;gap:8px;flex-wrap:wrap">
+    <a href="/cases/{{ case.id }}/coss" class="btn btn-sec" style="padding:6px 14px;font-size:13px">Cost of service</a>
+    <a href="/cases/{{ case.id }}/rates" class="btn btn-sec" style="padding:6px 14px;font-size:13px">Rate design</a>
+    <a href="/cases/{{ case.id }}/bills" class="btn btn-sec" style="padding:6px 14px;font-size:13px">Bill impacts</a>
+  </p>
+</div>
 {% endblock %}

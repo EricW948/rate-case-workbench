@@ -313,6 +313,52 @@ def experts_template():
     return _workbook_bytes(wb)
 
 
+def coss_template():
+    wb = Workbook()
+    _readme_sheet(
+        wb, "Cost-of-service study - how to fill this in",
+        [
+            "This sheet loads a case's customer classes: billing determinants, cost-of-service",
+            "allocation percentages, and current/proposed rate elements. The app allocates the",
+            "revenue requirement to classes, designs proposed rates, and computes bill impacts.",
+            "1. One row per customer class per case. Uploading the same class twice just updates it.",
+            "2. Row 2 is an EXAMPLE - overwrite it or delete it before uploading.",
+            "3. The Docket must already exist in the app (add it with the Case header template first).",
+            "4. Allocation % columns must each total 100 across the case's classes (rate base, O&M,",
+            "   depreciation, taxes). The app checks this on upload.",
+            "5. Proposed energy charge is COMPUTED by the app (it is the plug that recovers each",
+            "   class's revenue requirement after your customer and demand charges) - do not enter it.",
+            "6. Billing kW is only needed for demand-metered classes; leave blank for residential.",
+        ],
+        [
+            ("Docket", "The case number, e.g. 26-0347-EL-AIR. Must match a case already in the app."),
+            ("Class name", "E.g. Residential, General Service - Secondary, Primary, Lighting."),
+            ("Customers", "Average test-year customer count for the class."),
+            ("Annual kWh", "Total test-year kWh for the class (weather-normalized)."),
+            ("Billing kW", "Optional. Total billing demand kW (demand-metered classes only)."),
+            ("Alloc Rate base %", "Share of rate base assigned to this class. Column must total 100."),
+            ("Alloc O&M %", "Share of O&M assigned to this class. Column must total 100."),
+            ("Alloc Depreciation %", "Share of depreciation assigned to this class. Column must total 100."),
+            ("Alloc Taxes %", "Share of taxes assigned to this class. Column must total 100."),
+            ("Current customer $", "Current customer charge, $/customer/month."),
+            ("Current demand $", "Current demand charge, $/kW. 0 or blank for non-demand classes."),
+            ("Current energy $", "Current energy charge, $/kWh."),
+            ("Proposed customer $", "Proposed customer charge, $/customer/month (your policy choice)."),
+            ("Proposed demand $", "Proposed demand charge, $/kW (your policy choice)."),
+            ("Notes", "Optional."),
+        ],
+    )
+    headers = ["Docket", "Class name", "Customers", "Annual kWh", "Billing kW (optional)",
+               "Alloc Rate base %", "Alloc O&M %", "Alloc Depreciation %", "Alloc Taxes %",
+               "Current customer $/mo", "Current demand $/kW", "Current energy $/kWh",
+               "Proposed customer $/mo", "Proposed demand $/kW", "Notes (optional)"]
+    _data_sheet(wb, headers,
+                ["26-0347-EL-AIR  <-- EXAMPLE: overwrite or delete this row", "Residential",
+                 450000, 5400000000, "", 55.0, 60.0, 58.0, 52.0,
+                 8.50, 0, 0.07521, 10.00, 0, "EXAMPLE ROW - delete before uploading"])
+    return _workbook_bytes(wb)
+
+
 TEMPLATES = {
     "positions": ("three-way-positions-template.xlsx", positions_template,
                   "Three-way positions (as-filed vs Staff vs final)"),
@@ -325,4 +371,6 @@ TEMPLATES = {
                   "Discovery log (DRs, interrogatories, depositions)"),
     "experts": ("expert-roster-template.xlsx", experts_template,
                 "Expert witness roster"),
+    "coss": ("coss-template.xlsx", coss_template,
+             "Cost-of-service study (classes, determinants, allocations, rates)"),
 }

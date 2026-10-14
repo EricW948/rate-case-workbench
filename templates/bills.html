@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Bill impacts - {{ case.docket }}{% endblock %}
+{% block content %}
+<p class="muted" style="margin-top:0"><a href="/cases/{{ case.id }}">&larr; {{ case.docket }}</a></p>
+<h2 style="margin-top:0">Bill impacts</h2>
+<p class="muted">Typical monthly bills at low (50%), typical (100%), and high (200%) of class-average usage.
+This is the table intervenors will build anyway — better to see it first.</p>
+
+<div class="card">
+  <form method="get" action="/cases/{{ case.id }}/bills" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+    <label class="muted">Impacts from<br><select name="src">
+      <option value="as_filed" {% if src == "as_filed" %}selected{% endif %}>As filed</option>
+      {% for s in scenarios %}<option value="scenario:{{ s.id }}" {% if src == "scenario:" ~ s.id|string %}selected{% endif %}>Scenario: {{ s.name }}</option>{% endfor %}
+    </select></label>
+    <button class="btn btn-sec" type="submit">Apply</button>
+    <span class="muted" style="margin-left:auto"><a href="/cases/{{ case.id }}/coss?src={{ src }}">&larr; Cost of service</a> &nbsp; <a href="/cases/{{ case.id }}/rates?src={{ src }}">&larr; Rate design</a></span>
+  </form>
+</div>
+
+{% if src_error %}
+<div class="alert alert-err">{{ src_error }}</div>
+{% elif not classes %}
+<div class="card"><p class="muted" style="margin:0">No customer classes yet for this case. Load them with the <a href="/import">COSS template</a>.</p></div>
+{% else %}
+{% if alloc_errors %}
+<div class="alert alert-err"><strong>Allocation problem:</strong><ul class="errs">{% for e in alloc_errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+{% endif %}
+{% for c in classes %}
+{% set rows = impacts.get(c.id) %}
+<div class="card">
+  <h3>{{ c.name }}</h3>
+  {% if not rows %}
+  <p class="muted" style="margin:0">Can't compute — needs billing determinants and a solved energy charge.</p>
+  {% else %}
+  <div class="wrap"><table>
+    <tr><th>Usage level</th><th>kWh / mo</th>{% if c.kw_billing %}<th>kW</th>{% endif %}
+        <th>Current bill</th><th>Proposed bill</th><th>Change $</th><th>Change %</th></tr>
+    {% for b in rows %}
+    <tr>
+      <td>{{ b.level }}</td>
+      <td>{{ "{:,.0f}".format(b.kwh) }}</td>
+      {% if c.kw_billing %}<td>{{ "%.1f"|format(b.kw) }}</td>{% endif %}
+      <td>{% if b.current is not none %}${{ "%.2f"|format(b.current) }}{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>{% if b.proposed is not none %}<strong>${{ "%.2f"|format(b.proposed) }}</strong>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>{% if b.change is not none %}{% if b.change >= 0 %}+{% endif %}${{ "%.2f"|format(b.change) }}{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>{% if b.pct is not none %}{% if b.pct >= 0 %}+{% endif %}{{ "%.1f"|format(b.pct) }}%{% else %}<span class="muted">—</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

@@ -256,6 +256,112 @@ def scenario_math(s):
             "adj_total": adj_total, "revenue_requirement": rr}
 
 
+# ------------------------------------------------------------------ COSS /
+# rate design / bill impacts
+#
+# The chain: (1) take a revenue requirement's components (from the
+# as-filed position or any scenario); (2) allocate rate base, O&M,
+# depreciation and taxes to customer classes by the COSS percentages;
+# (3) compute each class's return from its allocated rate base at the
+# source ROR; (4) design rates — the user sets customer and demand
+# charges (policy choices) and the engine solves the energy charge as
+# the plug that recovers the class RR; (5) bill impacts fall out of
+# current vs proposed rates at representative usage.
+
+COSS_COMPONENTS = ["rate_base", "opex", "depreciation", "taxes"]
+COSS_LABELS = {"rate_base": "Rate base", "opex": "O&M",
+               "depreciation": "Depreciation", "taxes": "Taxes"}
+
+
+def rr_source_components(src):
+    """Pull allocatable components ($M) and ROR (decimal) from a
+    ThreeWayPosition or Scenario."""
+    eq = (src.equity_ratio or 0) / 100.0
+    ror = eq * (src.roe or 0) / 100.0 + (1 - eq) * (src.cost_of_debt or 0) / 100.0
+    return {"rate_base": src.rate_base or 0, "opex": src.opex or 0,
+            "depreciation": src.depreciation or 0, "taxes": src.taxes or 0,
+            "ror": ror}
+
+
+def class_revenue_requirements(classes, comp):
+    """Allocate components to classes. Returns {class_id: dict} with
+    allocated $M per component, the computed return, and class RR."""
+    out = {}
+    for c in classes:
+        rb = comp["rate_base"] * (c.alloc_rate_base or 0) / 100.0
+        ox = comp["opex"] * (c.alloc_opex or 0) / 100.0
+        dp = comp["depreciation"] * (c.alloc_depreciation or 0) / 100.0
+        tx = comp["taxes"] * (c.alloc_taxes or 0) / 100.0
+        ret = rb * comp["ror"]
+        out[c.id] = {"rate_base": rb, "return": ret, "opex": ox,
+                     "depreciation": dp, "taxes": tx,
+                     "total": ret + ox + dp + tx}
+    return out
+
+
+def design_rates(c, class_rr):
+    """Solve the proposed energy charge ($/kWh) as the plug: class RR
+    minus customer- and demand-charge recovery, divided by annual kWh.
+    Returns the full proposed rate set plus check figures ($M)."""
+    cust_rev = (c.prop_customer_charge or 0) * (c.customers or 0) * 12 / 1e6
+    dem_rev = (c.prop_demand_charge or 0) * (c.kw_billing or 0) * 12 / 1e6
+    kwh = c.kwh_annual or 0
+    residual = class_rr - cust_rev - dem_rev
+    energy = residual * 1e6 / kwh if kwh else None
+    return {"customer_charge": c.prop_customer_charge or 0,
+            "demand_charge": c.prop_demand_charge or 0,
+            "energy_charge": energy,
+            "customer_revenue": cust_rev, "demand_revenue": dem_rev,
+            "energy_revenue": residual,
+            "check_total": cust_rev + dem_rev + residual}
+
+
+def monthly_bill(customer_charge, demand_charge, energy_charge, kwh, kw=0):
+    """One monthly bill. Returns None when the energy charge is unknown."""
+    if energy_charge is None:
+        return None
+    return ((customer_charge or 0) + (demand_charge or 0) * (kw or 0)
+            + energy_charge * kwh)
+
+
+def bill_impacts(c, class_rr):
+    """Typical-bill impacts at low / typical / high usage (50% / 100% /
+    200% of class-average monthly use). Returns a list of dicts."""
+    rates = design_rates(c, class_rr)
+    n = c.customers or 0
+    avg_kwh = (c.kwh_annual or 0) / n / 12 if n else 0
+    avg_kw = (c.kw_billing or 0) / n if n else 0
+    out = []
+    for label, mult in (("Low", 0.5), ("Typical", 1.0), ("High", 2.0)):
+        kwh, kw = avg_kwh * mult, avg_kw * mult
+        cur = monthly_bill(c.cur_customer_charge, c.cur_demand_charge,
+                           c.cur_energy_charge, kwh, kw)
+        prop = monthly_bill(rates["customer_charge"], rates["demand_charge"],
+                            rates["energy_charge"], kwh, kw)
+        if cur is None or prop is None or not cur:
+            chg, pct = None, None
+        else:
+            chg, pct = prop - cur, (prop - cur) / cur * 100
+        out.append({"level": label, "kwh": kwh, "kw": kw,
+                    "current": cur, "proposed": prop,
+                    "change": chg, "pct": pct})
+    return out
+
+
+def validate_coss_allocations(classes):
+    """Allocation percentages must sum to 100 per component (within
+    rounding tolerance). Returns a list of plain-language errors."""
+    errors = []
+    for comp in COSS_COMPONENTS:
+        total = sum(getattr(c, "alloc_" + comp) or 0 for c in classes)
+        if abs(total - 100.0) > 0.05:
+            errors.append(
+                "The %s allocation adds up to %.2f%% across classes — "
+                "it needs to total 100%%. Check the Alloc %s %% column."
+                % (COSS_LABELS[comp], total, COSS_LABELS[comp]))
+    return errors
+
+
 def parse_adjustments(text):
     """Parse pasted adjustment lines: 'name | amount' or
     'name | category | amount'. Amounts are $M, + or -. All-or-nothing."""
@@ -636,6 +742,81 @@ def scenario_delete(scenario_id: int, db: Session = Depends(get_db)):
     db.delete(s)
     db.commit()
     return RedirectResponse(f"/cases/{case_id}/scenarios", status_code=303)
+
+
+def _coss_source(request, db, case):
+    """Resolve the RR source for COSS pages: ?src=as_filed (default) or
+    ?src=scenario:<id>. Returns (label, components dict, error)."""
+    q = request.query_params.get("src", "as_filed")
+    if q.startswith("scenario:"):
+        try:
+            sid = int(q.split(":", 1)[1])
+        except ValueError:
+            return None, None, "That scenario ID didn't parse - pick one from the list."
+        s = db.query(Scenario).filter(Scenario.id == sid,
+                                      Scenario.case_id == case.id).first()
+        if not s:
+            return None, None, "Pick one of this case's scenarios."
+        return f"Scenario: {s.name}", rr_source_components(s), None
+    pos = db.query(ThreeWayPosition).filter(
+        ThreeWayPosition.case_id == case.id,
+        ThreeWayPosition.stage == "as_filed").first()
+    if not pos:
+        return None, None, ("No as-filed position yet for this case - add one with the "
+                            "positions template, or pick a scenario above.")
+    return "As filed", rr_source_components(pos), None
+
+
+def _coss_context(request, db, case):
+    """Shared context for the COSS / rates / bills pages."""
+    classes = sorted(case.customer_classes, key=lambda c: (c.sort_order or 0, c.name or ""))
+    scenarios = db.query(Scenario).filter(Scenario.case_id == case.id).all()
+    src_label, comp, src_error = _coss_source(request, db, case)
+    alloc_errors = validate_coss_allocations(classes) if classes and not src_error else []
+    class_rr = class_revenue_requirements(classes, comp) if comp and not alloc_errors else {}
+    return {"request": request, "case": case, "classes": classes,
+            "scenarios": scenarios, "src": request.query_params.get("src", "as_filed"),
+            "src_label": src_label, "src_error": src_error,
+            "alloc_errors": alloc_errors, "comp": comp, "class_rr": class_rr,
+            "type_labels": TYPE_LABELS}
+
+
+@app.get("/cases/{case_id}/coss", response_class=HTMLResponse)
+def coss_page(request: Request, case_id: int, db: Session = Depends(get_db)):
+    """Cost-of-service allocation: revenue requirement components by class."""
+    case = db.query(Case).filter(Case.id == case_id).first()
+    if not case:
+        return HTMLResponse("Case not found.", status_code=404)
+    ctx = _coss_context(request, db, case)
+    ctx["coss_labels"] = COSS_LABELS
+    return templates.TemplateResponse(request, "coss.html", ctx)
+
+
+@app.get("/cases/{case_id}/rates", response_class=HTMLResponse)
+def rates_page(request: Request, case_id: int, db: Session = Depends(get_db)):
+    """Rate design: current vs proposed rates per class, with the proposed
+    energy charge solved as the plug."""
+    case = db.query(Case).filter(Case.id == case_id).first()
+    if not case:
+        return HTMLResponse("Case not found.", status_code=404)
+    ctx = _coss_context(request, db, case)
+    designed = {c.id: design_rates(c, ctx["class_rr"][c.id]["total"])
+                for c in ctx["classes"] if c.id in ctx["class_rr"]}
+    ctx["designed"] = designed
+    return templates.TemplateResponse(request, "rates.html", ctx)
+
+
+@app.get("/cases/{case_id}/bills", response_class=HTMLResponse)
+def bills_page(request: Request, case_id: int, db: Session = Depends(get_db)):
+    """Bill impacts: typical bills at low / typical / high usage per class."""
+    case = db.query(Case).filter(Case.id == case_id).first()
+    if not case:
+        return HTMLResponse("Case not found.", status_code=404)
+    ctx = _coss_context(request, db, case)
+    impacts = {c.id: bill_impacts(c, ctx["class_rr"][c.id]["total"])
+               for c in ctx["classes"] if c.id in ctx["class_rr"]}
+    ctx["impacts"] = impacts
+    return templates.TemplateResponse(request, "bills.html", ctx)
 
 
 @app.get("/riders", response_class=HTMLResponse)

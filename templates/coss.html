@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Cost of service - {{ case.docket }}{% endblock %}
+{% block content %}
+<p class="muted" style="margin-top:0"><a href="/cases/{{ case.id }}">&larr; {{ case.docket }}</a></p>
+<h2 style="margin-top:0">Cost-of-service allocation</h2>
+<p class="muted">The revenue requirement, split by customer class. Allocation percentages come from your COSS —
+each column must total 100% across classes. The class return is computed from allocated rate base at the source's overall return.</p>
+
+<div class="card">
+  <form method="get" action="/cases/{{ case.id }}/coss" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+    <label class="muted">Allocate from<br><select name="src">
+      <option value="as_filed" {% if src == "as_filed" %}selected{% endif %}>As filed</option>
+      {% for s in scenarios %}<option value="scenario:{{ s.id }}" {% if src == "scenario:" ~ s.id|string %}selected{% endif %}>Scenario: {{ s.name }}</option>{% endfor %}
+    </select></label>
+    <button class="btn btn-sec" type="submit">Apply</button>
+    <span class="muted" style="margin-left:auto"><a href="/cases/{{ case.id }}/rates?src={{ src }}">Rate design &rarr;</a> &nbsp; <a href="/cases/{{ case.id }}/bills?src={{ src }}">Bill impacts &rarr;</a></span>
+  </form>
+</div>
+
+{% if src_error %}
+<div class="alert alert-err">{{ src_error }}</div>
+{% elif not classes %}
+<div class="card"><p class="muted" style="margin:0">No customer classes yet for this case. Load them with the <a href="/import">COSS template</a>.</p></div>
+{% else %}
+{% if alloc_errors %}
+<div class="alert alert-err"><strong>Allocation problem:</strong><ul class="errs">{% for e in alloc_errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+{% endif %}
+<div class="card">
+  <h3>By class — {{ src_label }} <span class="muted">(${ "%.1f"|format(comp.rate_base) }}M rate base, {{ "%.2f"|format(comp.ror*100) }}% overall return)</span></h3>
+  <div class="wrap"><table>
+    <tr><th>Class</th><th>Customers</th><th>Annual kWh</th>
+        <th>Rate base $M</th><th>Return $M</th><th>O&amp;M $M</th><th>Depr $M</th><th>Taxes $M</th><th>Class RR $M</th></tr>
+    {% for c in classes %}
+    {% set r = class_rr.get(c.id) %}
+    <tr>
+      <td><strong>{{ c.name }}</strong><br><span class="muted">RB {{ "%.1f"|format(c.alloc_rate_base or 0) }}% · O&amp;M {{ "%.1f"|format(c.alloc_opex or 0) }}% · D {{ "%.1f"|format(c.alloc_depreciation or 0) }}% · T {{ "%.1f"|format(c.alloc_taxes or 0) }}%</span></td>
+      <td>{{ "{:,.0f}".format(c.customers or 0) }}</td>
+      <td>{{ "{:,.0f}".format(c.kwh_annual or 0) }}</td>
+      {% if r %}
+      <td>${{ "%.1f"|format(r.rate_base) }}</td><td>${{ "%.1f"|format(r.return) }}</td>
+      <td>${{ "%.1f"|format(r.opex) }}</td><td>${{ "%.1f"|format(r.depreciation) }}</td>
+      <td>${{ "%.1f"|format(r.taxes) }}</td><td><strong>${{ "%.1f"|format(r.total) }}</strong></td>
+      {% else %}<td colspan="6"><span class="muted">—</span></td>{% endif %}
+    </tr>
+    {% endfor %}
+  </table></div>
+  <p class="muted" style="margin-bottom:0">Class RR = allocated rate base &times; overall return + allocated O&amp;M + depreciation + taxes. Switch the source above to run the same allocation against any scenario.</p>
+</div>
+{% endif %}
+{% endblock %}
