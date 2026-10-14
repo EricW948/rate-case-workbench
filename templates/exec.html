@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Executive insights - {{ case.docket }}{% endblock %}
+{% block content %}
+<p class="muted" style="margin-top:0"><a href="/cases/{{ case.id }}">&larr; {{ case.docket }}</a></p>
+<h2 style="margin-top:0">Executive insights</h2>
+<p class="muted">When to file, and what to ask for — the two questions the C-suite asks before the testimony is written.</p>
+
+<div class="card">
+  <form method="get" action="/cases/{{ case.id }}/exec" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+    <label class="muted">Analyze<br><select name="src">
+      <option value="as_filed" {% if q.src == "as_filed" %}selected{% endif %}>As filed</option>
+      {% for s in scenarios %}<option value="{{ s.id }}" {% if q.src == s.id|string %}selected{% endif %}>Scenario: {{ s.name }}</option>{% endfor %}
+    </select></label>
+    <label class="muted">Months of delay<br><input type="number" name="months" value="{{ q.months }}" min="1" max="60" style="width:80px"></label>
+    <button class="btn btn-sec" type="submit">Apply</button>
+  </form>
+</div>
+
+{% for e in errors %}<div class="alert alert-err">{{ e }}</div>{% endfor %}
+
+{% if not has_build %}
+<div class="card"><p class="muted" style="margin:0">No revenue-requirement build yet for this case. Fill in the as-filed position's build fields (rate base, ROE, capital structure, O&amp;M, depreciation, taxes) or add a scenario in the <a href="/cases/{{ case.id }}/scenarios">scenario workbench</a> first.</p></div>
+{% else %}
+
+<div class="card">
+  <h3>Cost of delay <span class="muted" style="font-weight:400">({{ src_label }})</span></h3>
+  {% if delay.increase is not none %}
+  <p style="font-size:20px;margin:8px 0">Each month without new rates costs <strong>${{ "%.1f"|format(delay.monthly) }}M</strong>.</p>
+  <div class="wrap"><table>
+    <tr><th>Annual revenue requirement</th><td>${{ "%.1f"|format(delay.src_rr) }}M</td></tr>
+    <tr><th>Authorized today</th><td>${{ "%.1f"|format(delay.current_revenue) }}M</td></tr>
+    <tr><th>Annual increase at stake</th><td><strong>${{ "%.1f"|format(delay.increase) }}M</strong></td></tr>
+    <tr><th>Foregone return on rate base / mo</th><td>${{ "%.1f"|format(delay.foregone_return_monthly) }}M <span class="muted">({{ "%.2f"|format(delay.ror_pct) }}% overall return)</span></td></tr>
+  </table></div>
+  <div class="wrap"><table>
+    <tr><th>Months delayed</th><th>Cumulative foregone revenue</th></tr>
+    {% for m, cum in delay.rows %}
+    {% if m == 1 or m == 6 or m == 12 or m == 18 or m == 24 or m == delay.months %}
+    <tr><td>{{ m }}</td><td><strong>${{ "%.1f"|format(cum) }}M</strong></td></tr>
+    {% endif %}
+    {% endfor %}
+  </table></div>
+  <p class="muted" style="margin-bottom:0">Delay forfeits 1/12 of the annual increase per month — money that is gone forever and never recovered in a later case. The foregone return is the profit lens: what the invested capital isn't earning while rates sit unchanged.</p>
+  {% else %}
+  <p class="muted">The as-filed position doesn't carry both a revenue requirement and a requested increase, so the increase-based math can't run. The profit lens still works:</p>
+  <p style="font-size:20px;margin:8px 0">Unrecovered return on rate base: <strong>${{ "%.1f"|format(delay.foregone_return_monthly) }}M / month</strong> <span class="muted" style="font-size:14px">({{ "%.2f"|format(delay.ror_pct) }}% overall return)</span>.</p>
+  <p class="muted" style="margin-bottom:0">Fill in the as-filed revenue requirement and revenue change to get the full delay-cost table.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>Lever ranking <span class="muted" style="font-weight:400">({{ src_label }} — ${{ "%.1f"|format(levers.base_rr) }}M base RR)</span></h3>
+  <p class="muted" style="margin-top:-6px">Each lever bumped by a standard increment, everything else held constant. Aim testimony at the top three.</p>
+  <div class="wrap"><table>
+    <tr><th>#</th><th>Lever</th><th>Increment</th><th>&Delta; revenue requirement</th></tr>
+    {% for l in levers.levers %}
+    <tr {% if loop.index <= 3 %}style="background:#eff6ff"{% endif %}>
+      <td>{{ loop.index }}</td>
+      <td><strong>{{ l.label }}</strong></td>
+      <td>{{ l.increment }}</td>
+      <td><strong>+${{ "%.1f"|format(l.delta) }}M</strong></td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  <p class="muted" style="margin-bottom:0">Computed through the same engine as the scenario workbench, so the dollars tie. Model the actual ask in <a href="/cases/{{ case.id }}/scenarios">scenarios</a>.</p>
+</div>
+{% endif %}
+{% endblock %}

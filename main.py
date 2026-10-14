@@ -243,16 +243,30 @@ def _sdate(s):
         return None
 
 
+def _ror(equity_ratio, roe, cost_of_debt):
+    """Overall rate of return (decimal) from capital structure."""
+    eq = (equity_ratio or 0) / 100.0
+    return eq * (roe or 0) / 100.0 + (1 - eq) * (cost_of_debt or 0) / 100.0
+
+
+def rr_from_inputs(rate_base, equity_ratio, roe, cost_of_debt,
+                   opex, depreciation, taxes, adjustments=0.0):
+    """Revenue requirement ($M) from explicit inputs. Single source of
+    truth for the executive math; scenario_math delegates to it."""
+    ror = _ror(equity_ratio, roe, cost_of_debt)
+    return_on_rb = (rate_base or 0) * ror
+    return (return_on_rb + (opex or 0) + (depreciation or 0)
+            + (taxes or 0) + (adjustments or 0))
+
+
 def scenario_math(s):
     """Revenue requirement = rate base x overall return + O&M + depreciation
     + taxes + adjustments. Every methodology choice is a lever on this."""
-    eq = (s.equity_ratio or 0) / 100.0
-    ror = eq * (s.roe or 0) / 100.0 + (1 - eq) * (s.cost_of_debt or 0) / 100.0
-    return_on_rb = (s.rate_base or 0) * ror
+    ror = _ror(s.equity_ratio, s.roe, s.cost_of_debt)
     adj_total = sum(a.amount or 0 for a in s.adjustments)
-    rr = (return_on_rb + (s.opex or 0) + (s.depreciation or 0)
-          + (s.taxes or 0) + adj_total)
-    return {"ror_pct": ror * 100.0, "return_on_rb": return_on_rb,
+    rr = rr_from_inputs(s.rate_base, s.equity_ratio, s.roe, s.cost_of_debt,
+                        s.opex, s.depreciation, s.taxes, adj_total)
+    return {"ror_pct": ror * 100.0, "return_on_rb": (s.rate_base or 0) * ror,
             "adj_total": adj_total, "revenue_requirement": rr}
 
 
@@ -817,6 +831,128 @@ def bills_page(request: Request, case_id: int, db: Session = Depends(get_db)):
                for c in ctx["classes"] if c.id in ctx["class_rr"]}
     ctx["impacts"] = impacts
     return templates.TemplateResponse(request, "bills.html", ctx)
+
+
+# ------------------------------------------------------------------ Executive
+# insights: when to file, what to ask for.
+#
+# The C-suite asks two questions the workbench didn't answer. (1) What
+# does delay cost? Every month without new rates forfeits 1/12 of the
+# annual revenue increase — money that is gone forever, never recovered
+# in a later case. (2) Which levers matter? Perturb each RR input by a
+# standard increment and rank by dollar impact, so leadership aims
+# testimony at the three biggest levers instead of tuning the model.
+
+def _exec_inputs(src):
+    """The seven RR inputs off a ThreeWayPosition or Scenario ($M / %)."""
+    adj = sum(a.amount or 0 for a in getattr(src, "adjustments", None) or [])
+    return {"rate_base": src.rate_base or 0, "equity_ratio": src.equity_ratio or 0,
+            "roe": src.roe or 0, "cost_of_debt": src.cost_of_debt or 0,
+            "opex": src.opex or 0, "depreciation": src.depreciation or 0,
+            "taxes": src.taxes or 0, "adjustments": adj}
+
+
+EXEC_LEVERS = [
+    ("roe", "ROE", "+10 bps", lambda v: v + 0.10),
+    ("equity_ratio", "Equity ratio", "+1 pt", lambda v: v + 1.0),
+    ("rate_base", "Rate base", "+$100M", lambda v: v + 100.0),
+    ("cost_of_debt", "Cost of debt", "+10 bps", lambda v: v + 0.10),
+    ("opex", "O&M expense", "+$10M", lambda v: v + 10.0),
+    ("depreciation", "Depreciation", "+$10M", lambda v: v + 10.0),
+    ("taxes", "Taxes", "+$10M", lambda v: v + 10.0),
+]
+
+
+def lever_ranking(src):
+    """Bump each lever by its standard increment, recompute RR through the
+    shared engine, and rank by absolute dollar impact ($M)."""
+    base = _exec_inputs(src)
+    base_rr = rr_from_inputs(**base)
+    rows = []
+    for key, label, incr_label, bump in EXEC_LEVERS:
+        bumped = dict(base)
+        bumped[key] = bump(base[key])
+        delta = rr_from_inputs(**bumped) - base_rr
+        rows.append({"key": key, "label": label, "increment": incr_label,
+                     "delta": delta})
+    rows.sort(key=lambda r: abs(r["delta"]), reverse=True)
+    return {"base_rr": base_rr, "inputs": base, "levers": rows}
+
+
+def delay_analysis(src_rr, src_inputs, current_revenue, months):
+    """Cost of waiting. If today's authorized revenue is known, each month
+    of delay forfeits 1/12 of the annual increase. Always shows the
+    foregone return on rate base as the profit lens."""
+    ror = _ror(src_inputs["equity_ratio"], src_inputs["roe"],
+               src_inputs["cost_of_debt"])
+    foregone_monthly = (src_inputs["rate_base"] * ror) / 12.0
+    out = {"src_rr": src_rr, "ror_pct": ror * 100.0,
+           "foregone_return_monthly": foregone_monthly,
+           "current_revenue": current_revenue, "months": months,
+           "increase": None, "monthly": None, "rows": []}
+    if current_revenue is not None:
+        increase = src_rr - current_revenue
+        monthly = increase / 12.0
+        out["increase"] = increase
+        out["monthly"] = monthly
+        out["rows"] = [(m, m * monthly) for m in range(1, months + 1)]
+    return out
+
+
+@app.get("/cases/{case_id}/exec", response_class=HTMLResponse)
+def exec_page(request: Request, case_id: int, db: Session = Depends(get_db)):
+    """Executive insights: cost of regulatory delay + ranked RR levers."""
+    case = db.query(Case).filter(Case.id == case_id).first()
+    if not case:
+        return HTMLResponse("Case not found.", status_code=404)
+    af = _as_filed(db, case)
+    scenarios = (db.query(Scenario).filter(Scenario.case_id == case.id)
+                 .order_by(Scenario.id).all())
+    q = request.query_params
+    # Source: "as_filed" (default) or a scenario id.
+    src_key = q.get("src", "as_filed")
+    src, src_label, src_rr, src_inputs = None, "", None, None
+    errors = []
+    if src_key == "as_filed":
+        src, src_label = af, "As filed"
+    else:
+        try:
+            sid = int(src_key)
+        except (TypeError, ValueError):
+            sid = None
+        src = next((s for s in scenarios if s.id == sid), None) if sid else None
+        src_label = src.name if src else ""
+        if not src:
+            errors.append("Pick this case's as-filed position or one of its scenarios.")
+    if src:
+        src_inputs = _exec_inputs(src)
+        if isinstance(src, Scenario):
+            src_rr = scenario_math(src)["revenue_requirement"]
+        else:
+            src_rr = (af.revenue_requirement if af.revenue_requirement
+                      else rr_from_inputs(**src_inputs))
+    # Today's authorized revenue = as-filed RR minus the requested increase.
+    current_revenue = None
+    if (af and af.revenue_requirement not in (None, 0)
+            and af.revenue_change not in (None, 0)):
+        current_revenue = af.revenue_requirement - af.revenue_change
+    try:
+        months = int(q.get("months", 12))
+    except (TypeError, ValueError):
+        months = 12
+    months = max(1, min(months, 60))
+    delay = (delay_analysis(src_rr, src_inputs, current_revenue, months)
+             if src else None)
+    levers = lever_ranking(src) if src else None
+    has_build = bool(src) and any(v for k, v in src_inputs.items()
+                                  if k != "adjustments")
+    return templates.TemplateResponse(request, "exec.html", {
+        "request": request, "case": case, "as_filed": af,
+        "scenarios": scenarios, "src_key": src_key, "src_label": src_label,
+        "delay": delay, "levers": levers, "months": months,
+        "has_build": has_build, "errors": errors,
+        "q": {"src": src_key, "months": str(months)},
+    })
 
 
 @app.get("/riders", response_class=HTMLResponse)
