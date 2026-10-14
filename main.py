@@ -80,6 +80,15 @@ def startup():
     try:
         if db.query(Utility).count() == 0:
             seed_module.seed()
+        else:
+            # One-time correction: ensure gas utilities carry sector="gas"
+            # (older seeds left them as electric/default).
+            for name in ("Duke Energy Ohio (Gas)", "CenterPoint Energy Ohio",
+                         "Enbridge Gas Ohio", "Columbia Gas of Ohio"):
+                u = db.query(Utility).filter(Utility.name == name).first()
+                if u and u.sector != "gas":
+                    u.sector = "gas"
+            db.commit()
     finally:
         db.close()
 
