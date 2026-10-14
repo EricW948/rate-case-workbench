@@ -60,8 +60,14 @@ def grouped_bars(groups, fmt, width=680, height=300):
             ly = top - 7 if v >= 0 else top + hgt + 15
             s.append(f'<text x="{x+bw/2}" y="{round(ly,1)}" text-anchor="middle" '
                      f'font-size="11" font-weight="600" fill="#1e293b">{fmt(v)}</text>')
-        s.append(f'<text x="{cx}" y="{height-40}" text-anchor="middle" font-size="11" '
-                 f'font-weight="600" fill="#1e293b">{g["label"]}</text>')
+        if g.get("logo"):
+            s.append(f'<title>{g["label"]}</title>')
+            s.append(f'<image href="/static/logos/{g["logo"]}" x="{round(cx-32,1)}" '
+                     f'y="{height-70}" width="64" height="26" '
+                     f'preserveAspectRatio="xMidYMid meet"/>')
+        else:
+            s.append(f'<text x="{cx}" y="{height-40}" text-anchor="middle" font-size="11" '
+                     f'font-weight="600" fill="#1e293b">{g["label"]}</text>')
         s.append(f'<text x="{cx}" y="{height-25}" text-anchor="middle" font-size="10" '
                  f'fill="#64748b">{g["sub"]}</text>')
     s.append("</svg>")

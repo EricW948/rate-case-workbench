@@ -7,6 +7,7 @@ from io import BytesIO
 
 from fastapi import FastAPI, Request, Depends, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
@@ -23,6 +24,19 @@ import charts
 
 app = FastAPI(title="Rate Case Workbench")
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
+app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")
+
+# Company logos for the Compare page, keyed by utility name.
+UTILITY_LOGOS = {
+    "AES Ohio": "aes.svg",
+    "AEP Ohio": "aep.svg",
+    "Duke Energy Ohio (Electric)": "duke.svg",
+    "Duke Energy Ohio (Gas)": "duke.svg",
+    "FirstEnergy": "firstenergy.svg",
+    "Columbia Gas of Ohio": "columbia.svg",
+    "CenterPoint Energy Ohio": "nationalfuel.svg",
+    "Enbridge Gas Ohio": "enbridge.svg",
+}
 
 STAGE_LABELS = {"as_filed": "As filed", "staff": "Staff", "final_or_stip": "Final / stipulation"}
 STATUS_LABELS = {"decided": "Decided", "pending": "In progress",
@@ -966,25 +980,32 @@ def rider_list(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/charts", response_class=HTMLResponse)
 def chart_page(request: Request, db: Session = Depends(get_db)):
+    sector = request.query_params.get("sector", "all")
+    if sector not in ("all", "electric", "gas"):
+        sector = "all"
     cases = db.query(Case).all()
+    if sector != "all":
+        cases = [c for c in cases if (c.utility.sector or "electric") == sector]
     rev_groups, roe_groups = [], []
     for c in sorted(cases, key=lambda x: x.docket):
         pos = {p.stage: p for p in c.positions if not p.period or "TY1" in (p.period or "")}
         af, fn = pos.get("as_filed"), pos.get("final_or_stip")
         short = c.utility.name.replace(" Energy Ohio", "").replace(" Ohio", "")
         label = f"{short}"
-        sub = c.docket.replace("-EL-AIR", "")
+        sub = c.docket.replace("-EL-AIR", "").replace("-GA-AIR", "")
+        logo = UTILITY_LOGOS.get(c.utility.name)
         if af and af.revenue_change is not None and fn and fn.revenue_change is not None:
-            rev_groups.append({"label": label, "sub": sub,
+            rev_groups.append({"label": label, "sub": sub, "logo": logo,
                                "bars": [(af.revenue_change, charts.SLATE),
                                         (fn.revenue_change, charts.BLUE)]})
         if af and af.roe is not None and fn and fn.roe is not None:
-            roe_groups.append({"label": label, "sub": sub,
+            roe_groups.append({"label": label, "sub": sub, "logo": logo,
                                "bars": [(af.roe, charts.AMBER), (fn.roe, charts.GREEN)]})
     rev_svg = charts.grouped_bars(rev_groups, charts.money)
     roe_svg = charts.grouped_bars(roe_groups, charts.pct)
     return templates.TemplateResponse(request, "charts.html", {
         "request": request, "rev_svg": rev_svg, "roe_svg": roe_svg,
+        "sector": sector,
         "rev_legend": charts.legend([(charts.SLATE, "As filed"), (charts.BLUE, "Final / stipulation")]),
         "roe_legend": charts.legend([(charts.AMBER, "Requested"), (charts.GREEN, "Authorized / settled")])})
 

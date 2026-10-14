@@ -4,17 +4,25 @@
 <h2 style="margin-top:0">How the utilities compare</h2>
 <p class="muted">Requested vs. decided, side by side. These charts work offline - no internet needed.</p>
 
+<div class="card" style="padding:12px 16px">
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a href="/charts?sector=all" class="btn {% if sector != 'all' %}btn-sec{% endif %}" style="padding:6px 14px;font-size:13px">All</a>
+    <a href="/charts?sector=electric" class="btn {% if sector != 'electric' %}btn-sec{% endif %}" style="padding:6px 14px;font-size:13px">Electric</a>
+    <a href="/charts?sector=gas" class="btn {% if sector != 'gas' %}btn-sec{% endif %}" style="padding:6px 14px;font-size:13px">Gas</a>
+  </div>
+</div>
+
 <div class="card">
   <h3>Revenue change: what they asked for vs. what they got ($M / yr)</h3>
   {{ rev_legend|safe }}
   {{ rev_svg|safe }}
-  <p class="muted">AEP 25-0392's final bar is the gross figure (+$320.1M); net new base-rate revenue was +$11.1M after rider roll-ins. Duke 17-0032 ended in a decrease. AES 25-0958 shows Test Year 1 (2027); its stipulation isn't a final order yet.</p>
+  <p class="muted">{% if sector == 'gas' %}Gas distribution cases: Columbia Gas, Enbridge Gas Ohio, Duke Energy Ohio (Gas), and CenterPoint/National Fuel.{% elif sector == 'electric' %}AEP 25-0392's final bar is the gross figure (+$320.1M); net new base-rate revenue was +$11.1M after rider roll-ins. Duke 17-0032 ended in a decrease. AES 25-0958 shows Test Year 1 (2027); its stipulation isn't a final order yet.{% else %}AEP 25-0392's final bar is the gross figure (+$320.1M); net new base-rate revenue was +$11.1M after rider roll-ins. Duke 17-0032 ended in a decrease. AES 25-0958 shows Test Year 1 (2027); its stipulation isn't a final order yet.{% endif %}</p>
 </div>
 
 <div class="card">
   <h3>ROE: requested vs. authorized / settled (%)</h3>
   {{ roe_legend|safe }}
   {{ roe_svg|safe }}
-  <p class="muted">Ohio's recent landing zone: 9.50-9.999% for electric distribution.</p>
+  <p class="muted">{% if sector == 'gas' %}Columbia Gas 21-0637: $221.4M asked, $68.2M stipulated. Gas cases settle too — the haircut is real there as well.{% else %}Ohio's recent landing zone: 9.50-9.999% for electric distribution.{% endif %}</p>
 </div>
 {% endblock %}
