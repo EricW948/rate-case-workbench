@@ -521,6 +521,12 @@ def seed():
                  "the app. DIS shows OPEN-OPEN: appealed to the Supreme Court of Ohio "
                  "(No. 2026-1056, notice 08/10/2026) after the 4th Entry on Rehearing "
                  "(06/10/2026); Commission orders are issued.")
+    # Positions for 24-0468-EL-AIR (from PUCO order 11/19/2025 and OCC):
+    # As-filed: $190M increase, 10.8% ROE. Final: $34M net increase, 9.63% ROE.
+    upsert_position(db, c46, "as_filed", revenue_change=190.0, roe=10.8,
+                    rate_base=4300.0, notes="As-filed 5/31/2024. $4.3B rate base.")
+    upsert_position(db, c46, "final_or_stip", revenue_change=34.0, roe=9.63,
+                    notes="PUCO order 11/19/2025. Net $34M increase; $108M overhead disallowed.")
 
     # ---- FirstEnergy Ohio: current tariff rider inventory ----
     # From the 2026 tariff books (OE P.U.C.O. No. 11, CEI No. 13, TE No. 8), riders

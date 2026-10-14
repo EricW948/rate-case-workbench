@@ -6,7 +6,7 @@
 <div class="grid">
 {% for c in cards %}
   <div class="card">
-    <h3><a href="/utilities/{{ c.utility.id }}" style="color:inherit;text-decoration:none">{{ c.utility.name }}</a>{% if c.is_model %} <span class="badge b-model">Model utility</span>{% endif %}</h3>
+    <h3>{% if c.logo %}<img src="/static/logos/{{ c.logo }}" alt="{{ c.utility.name }} logo" style="height:28px;vertical-align:middle;margin-right:8px">{% endif %}<a href="/utilities/{{ c.utility.id }}" style="color:inherit;text-decoration:none">{{ c.utility.name }}</a>{% if c.is_model %} <span class="badge b-model">Model utility</span>{% endif %}</h3>
     <p class="muted" style="margin-top:-6px">{{ c.n_cases }} case{{ 's' if c.n_cases != 1 }} tracked &middot; {{ c.n_riders }} tariff{{ 's' if c.n_riders != 1 }}/rider{{ 's' if c.n_riders != 1 }}</p>
     {% if c.latest %}
       <p><strong>Latest case:</strong> <a href="/cases/{{ c.latest.id }}">{{ c.latest.docket }}</a><br>

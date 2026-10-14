@@ -20,7 +20,7 @@ def test_seed_is_idempotent(db):
     first = counts(db)
     assert first["utilities"] == 8
     assert first["cases"] == 18
-    assert first["positions"] == 39, first
+    assert first["positions"] == 41, first
     assert first["riders"] == 157, first
     assert first["documents"] == 10, first
     assert first["earned_roe"] == 6, first

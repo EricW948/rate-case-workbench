@@ -1,4 +1,6 @@
-"""Distribution Rate Case workbench (v1). Plain-language UI, Excel-first data entry."""
+"""Distribution Rate Case workbench (v1). Plain-language UI, Excel-first data entry.
+Deployed 2026-10-14: exec insights, gas compare, company logos.
+"""
 import os
 import re
 import uuid
@@ -191,7 +193,8 @@ def dashboard_cards(db):
         n_riders = db.query(TariffRider).filter(TariffRider.utility_id == u.id).count()
         cards.append({"utility": u, "latest": lc, "auth_case": auth_case, "auth": fp,
                       "n_cases": n_cases, "n_riders": n_riders,
-                      "is_model": u.name == MODEL_UTILITY})
+                      "is_model": u.name == MODEL_UTILITY,
+                      "logo": UTILITY_LOGOS.get(u.name)})
     # Model utility leads the dashboard.
     cards.sort(key=lambda c: (not c["is_model"], c["utility"].name))
     return cards
