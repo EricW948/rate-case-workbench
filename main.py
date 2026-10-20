@@ -90,6 +90,59 @@ def startup():
                 u = db.query(Utility).filter(Utility.name == name).first()
                 if u and u.sector != "gas":
                     u.sector = "gas"
+            # One-time correction: populate FirstEnergy 24-0468-EL-AIR positions
+            # (as-filed $190M / 10.8% ROE; final $34M / 9.63% ROE per PUCO order).
+            from models import Case, ThreeWayPosition
+            c46 = db.query(Case).filter(Case.docket == "24-0468-EL-AIR").first()
+            if c46:
+                for stage, rev, roe, notes in [
+                    ("as_filed", 190.0, 10.8, "As-filed 5/31/2024. $4.3B rate base."),
+                    ("final_or_stip", 34.0, 9.63, "PUCO order 11/19/2025. Net $34M increase."),
+                ]:
+                    p = db.query(ThreeWayPosition).filter(
+                        ThreeWayPosition.case_id == c46.id,
+                        ThreeWayPosition.stage == stage,
+                        ThreeWayPosition.period.is_(None)).first()
+                    if not p:
+                        p = ThreeWayPosition(case_id=c46.id, stage=stage, period=None)
+                        db.add(p)
+                    p.revenue_change = rev
+                    p.roe = roe
+                    p.notes = notes
+            # One-time correction: Columbia Gas formal filing 26-0965-GA-AIR
+            # (filed 10/19/2026) replaces the pre-filing TBD placeholder.
+            from models import Document
+            tbd = db.query(Case).filter(Case.docket == "TBD (pre-filing 2026-09-18)").first()
+            if tbd:
+                db.query(ThreeWayPosition).filter(ThreeWayPosition.case_id == tbd.id).delete()
+                db.query(Document).filter(Document.case_id == tbd.id).delete()
+                db.delete(tbd)
+                db.flush()
+            col = db.query(Utility).filter(Utility.name == "Columbia Gas of Ohio").first()
+            c965 = db.query(Case).filter(Case.docket == "26-0965-GA-AIR").first()
+            if col and not c965:
+                c965 = Case(docket="26-0965-GA-AIR", utility_id=col.id,
+                            case_type="historical", status="pending",
+                            date_filed="2026-10-19",
+                            notes="Formal base rate case application filed 10/19/2026. "
+                                  "Companion dockets 26-0966-GA-ATA, 26-0967-GA-UNC, "
+                                  "26-0968-GA-AAM.")
+                db.add(c965)
+                db.flush()
+            if c965:
+                for period, rev, cod in (("TY1 2028", 158.8, 5.18),
+                                         ("TY2 2029", 103.2, 5.28),
+                                         ("TY3 2030", 89.3, 5.37)):
+                    p = db.query(ThreeWayPosition).filter(
+                        ThreeWayPosition.case_id == c965.id,
+                        ThreeWayPosition.stage == "as_filed",
+                        ThreeWayPosition.period == period).first()
+                    if not p:
+                        db.add(ThreeWayPosition(
+                            case_id=c965.id, stage="as_filed", period=period,
+                            revenue_change=rev, roe=10.25, equity_ratio=51.50,
+                            cost_of_debt=cod,
+                            capital_structure="51.50% common equity / 48.50% long-term debt"))
             db.commit()
     finally:
         db.close()

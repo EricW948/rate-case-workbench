@@ -621,14 +621,60 @@ def seed():
                              "Residential fixed charge stepping to $58/mo by 2027. Affirmed by "
                              "the Ohio Supreme Court 6/25/2026 (2026-Ohio-2381). Positions not "
                              "yet extracted into the app.")
-    get_or_create_case(db, "TBD (pre-filing 2026-09-18)", col, case_type="historical",
-                       status="pending", date_filed="2026-09-18",
-                       notes="Preliminary proposal for a base rate increase filed 9/18/2026 "
-                             "(Columbus Dispatch, 9/25/2026). Residential base rate would rise "
-                             "to $68.05/mo in 2028, $72.92 in 2029, $77.12 in 2030; typical "
-                             "10 mcf bill estimated at $137.56 vs $122.77 today. ~1.5M customers "
-                             "in 61 counties. OCC intervening. Formal application not yet "
-                             "filed; PUCO decision expected summer 2027. Docket TBD.")
+    # Retire the pre-filing placeholder: the formal application was filed 10/19/2026
+    # under 26-0965-GA-AIR (verified on DIS 10/20/2026). Delete the bare TBD row so
+    # existing DBs don't keep a stale duplicate; it never had positions or documents.
+    tbd = db.query(Case).filter(Case.docket == "TBD (pre-filing 2026-09-18)").first()
+    if tbd:
+        db.delete(tbd)
+        db.flush()
+
+    # Formal application filed 10/19/2026, verified on DIS 10/20/2026
+    # (was tracked pre-filing as "TBD (pre-filing 2026-09-18)").
+    c = get_or_create_case(db, "26-0965-GA-AIR", col, case_type="historical",
+                           status="pending", date_filed="2026-10-19",
+                           notes="Formal base rate case application filed 10/19/2026: "
+                                 "\"Application for Authority to Increase Rates, to Modify Tariffs, "
+                                 "for Approval of a Demand Side Management Program, and for Approval "
+                                 "to Change Accounting Methods\" (286 pp; Melissa L. Thompson for "
+                                 "Columbia Gas of Ohio). Companion dockets 26-0966-GA-ATA, "
+                                 "26-0967-GA-UNC, 26-0968-GA-AAM. Preliminary proposal filed "
+                                 "9/18/2026 (Columbus Dispatch, 9/25/2026): residential base rate "
+                                 "would rise to $68.05/mo in 2028, $72.92 in 2029, $77.12 in 2030; "
+                                 "typical 10 mcf bill estimated at $137.56 vs $122.77 today. "
+                                 "~1.5M customers in 61 counties. OCC and OMAEG intervening. "
+                                 "PUCO decision expected summer 2027.")
+    # As-filed numbers from the 10/19/2026 application (DIS DocID
+    # 160ef78a-38ef-4a3b-8b6d-ec9ff1bbb01e), read 10/20/2026:
+    # - Three forecasted test years (TYRP): FTY1 = CY2028, FTY2 = CY2029, FTY3 = CY2030.
+    #   Approved by ALJ Entry 10/16/2026 (Todd M. Williams); rate base for each FTY is
+    #   the 13-month average as of the last day of the FTY. Statutory basis: Sub. HB 15
+    #   + Sub. SB 103 extending forecasted-test-period ratemaking to gas (R.C. 4909.15(C)(1)(a)).
+    # - revenue_change below is the increase RECOGNIZING termination of capital riders
+    #   (FTY1 $158.8M, 9.37%). Inclusive of the capital-rider roll-in (IRP, PHMSA IRP,
+    #   CEP) into base rates, the FTY1 ask is $604.5M (58.40%) — a one-time transition
+    #   from rider-based capital recovery to the forward-looking TYRP framework.
+    # - Rate base $ figure is not stated in the application pleading narrative
+    #   (detail lives in supporting schedules) — left blank, not invented.
+    upsert_position(db, c, "as_filed", period="TY1 2028", revenue_change=158.8,
+                    roe=10.25, equity_ratio=51.50, cost_of_debt=5.18,
+                    capital_structure="51.50% common equity / 48.50% long-term debt",
+                    notes="ROE 10.25% (low end of 10.25-11.25% Brattle range, witness Ann "
+                          "Bulkley). WACC 7.79%. FTY1 increase inclusive of capital-rider "
+                          "roll-in = $604.5M (58.40%); the 158.8 figure recognizes rider "
+                          "termination. Capex $1,101.9M; new SGS-2 rate class (300-600 Mcf); "
+                          "MGP environmental cost recovery (deferral capped at $24,997,442.98). "
+                          "Source: application pp.7-11 (doc pp.5-9).")
+    upsert_position(db, c, "as_filed", period="TY2 2029", revenue_change=103.2,
+                    roe=10.25, equity_ratio=51.50, cost_of_debt=5.28,
+                    capital_structure="51.50% common equity / 48.50% long-term debt",
+                    notes="WACC 7.84%. Capex $1,055.0M. FTY2 increase 5.53% (4.50% incl. rider "
+                          "roll-in framing: 6.25%). Source: application pp.7-11 (doc pp.5-9).")
+    upsert_position(db, c, "as_filed", period="TY3 2030", revenue_change=89.3,
+                    roe=10.25, equity_ratio=51.50, cost_of_debt=5.37,
+                    capital_structure="51.50% common equity / 48.50% long-term debt",
+                    notes="WACC 7.88%. Capex $934.4M. FTY3 increase 4.50% (incl. rider roll-in "
+                          "framing: 5.05%). Source: application pp.7-11 (doc pp.5-9).")
     for name, kind, auth, extra in [
         ("Monthly Delivery Charge (base tariff)", "tariff", "21-0637-GA-AIR",
          "Base delivery charge, $36.36/mo (SGS)."),
