@@ -143,6 +143,35 @@ def startup():
                             revenue_change=rev, roe=10.25, equity_ratio=51.50,
                             cost_of_debt=cod,
                             capital_structure="51.50% common equity / 48.50% long-term debt"))
+            # Gap-fill for 26-0965-GA-AIR (2026-10-26): the block above created
+            # the case and its three as-filed positions but left test_year,
+            # position notes, and the FTY1 gross revenue requirement blank.
+            # Fill them from the filed application (same figures as seed.py);
+            # rate base stays blank — the pleading narrative does not state it.
+            if c965:
+                c965.test_year = "FTY1 CY2028; FTY2 CY2029; FTY3 CY2030"
+                for period, notes in (
+                    ("TY1 2028",
+                     "ROE 10.25% (low end of 10.25-11.25% Brattle range, witness Ann "
+                     "Bulkley). WACC 7.79%. FTY1 increase inclusive of capital-rider "
+                     "roll-in = $604.5M (58.40%); the 158.8 figure recognizes rider "
+                     "termination. Capex $1,101.9M; new SGS-2 rate class (300-600 Mcf); "
+                     "MGP environmental cost recovery (deferral capped at $24,997,442.98). "
+                     "Source: application pp.7-11 (doc pp.5-9)."),
+                    ("TY2 2029",
+                     "WACC 7.84%. Capex $1,055.0M. FTY2 increase 5.53% (4.50% incl. rider "
+                     "roll-in framing: 6.25%). Source: application pp.7-11 (doc pp.5-9)."),
+                    ("TY3 2030",
+                     "WACC 7.88%. Capex $934.4M. FTY3 increase 4.50% (incl. rider roll-in "
+                     "framing: 5.05%). Source: application pp.7-11 (doc pp.5-9).")):
+                    p = db.query(ThreeWayPosition).filter(
+                        ThreeWayPosition.case_id == c965.id,
+                        ThreeWayPosition.stage == "as_filed",
+                        ThreeWayPosition.period == period).first()
+                    if p:
+                        p.notes = notes
+                        if period == "TY1 2028":
+                            p.revenue_requirement = 604.5
             db.commit()
     finally:
         db.close()

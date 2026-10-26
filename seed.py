@@ -633,6 +633,7 @@ def seed():
     # (was tracked pre-filing as "TBD (pre-filing 2026-09-18)").
     c = get_or_create_case(db, "26-0965-GA-AIR", col, case_type="historical",
                            status="pending", date_filed="2026-10-19",
+                           test_year="FTY1 CY2028; FTY2 CY2029; FTY3 CY2030",
                            notes="Formal base rate case application filed 10/19/2026: "
                                  "\"Application for Authority to Increase Rates, to Modify Tariffs, "
                                  "for Approval of a Demand Side Management Program, and for Approval "
@@ -657,6 +658,7 @@ def seed():
     # - Rate base $ figure is not stated in the application pleading narrative
     #   (detail lives in supporting schedules) — left blank, not invented.
     upsert_position(db, c, "as_filed", period="TY1 2028", revenue_change=158.8,
+                    revenue_requirement=604.5,
                     roe=10.25, equity_ratio=51.50, cost_of_debt=5.18,
                     capital_structure="51.50% common equity / 48.50% long-term debt",
                     notes="ROE 10.25% (low end of 10.25-11.25% Brattle range, witness Ann "
