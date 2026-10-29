@@ -29,6 +29,7 @@ def init_db():
     from models import (  # noqa: F401  (import registers models)
         Utility, ServiceArea, Case, ThreeWayPosition, TariffRider, Document, EarnedROE,
         DiscoveryRequest, ExpertWitness, Scenario, ScenarioAdjustment, CustomerClass,
+        Milestone,
     )
     Base.metadata.create_all(bind=engine)
     # Lightweight migrations for DBs created before these columns existed.

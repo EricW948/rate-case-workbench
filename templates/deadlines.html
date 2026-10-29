@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Deadlines - Rate Case Workbench{% endblock %}
+{% block content %}
+<h2 style="margin-top:0">Deadline calendar</h2>
+<p class="muted">Every dated obligation across every case — hearings, testimony, comments, discovery, and expert deadlines — overdue first, then upcoming. Dates come from tracked dockets; verify against PUCO DIS before filing around them.</p>
+
+{% if overdue %}
+<div class="card" style="border-left:4px solid #b91c1c">
+  <h3>Overdue ({{ overdue|length }})</h3>
+  <div class="wrap"><table>
+    <tr><th>Date</th><th>What</th><th>Case</th><th>Type</th></tr>
+    {% for d in overdue %}
+    <tr>
+      <td><strong style="color:#b91c1c">{{ d.date }}</strong></td>
+      <td><strong>{{ d.label }}</strong>{% if d.notes %}<br><span class="muted">{{ d.notes }}</span>{% endif %}</td>
+      <td><a href="/cases/{{ d.case_id }}">{{ d.docket }}</a><br><span class="muted">{{ d.utility }}</span></td>
+      <td>{{ kind_labels[d.kind] }}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+</div>
+{% else %}
+<div class="card"><p class="muted" style="margin-bottom:0">Nothing overdue.</p></div>
+{% endif %}
+
+<div class="card">
+  <h3>Upcoming ({{ upcoming|length }})</h3>
+  {% if upcoming %}
+  <div class="wrap"><table>
+    <tr><th>Date</th><th>What</th><th>Case</th><th>Type</th></tr>
+    {% for d in upcoming %}
+    <tr>
+      <td><strong>{{ d.date }}</strong></td>
+      <td><strong>{{ d.label }}</strong>{% if d.notes %}<br><span class="muted">{{ d.notes }}</span>{% endif %}</td>
+      <td><a href="/cases/{{ d.case_id }}">{{ d.docket }}</a><br><span class="muted">{{ d.utility }}</span></td>
+      <td>{{ kind_labels[d.kind] }}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}
+  <p class="muted" style="margin-bottom:0">No upcoming deadlines on file.</p>
+  {% endif %}
+</div>
+{% endblock %}

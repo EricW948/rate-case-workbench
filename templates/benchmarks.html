@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Peer benchmarks - Rate Case Workbench{% endblock %}
+{% block content %}
+<h2 style="margin-top:0">Peer benchmarks</h2>
+<p class="muted">What Ohio utilities asked for, what they got, and the haircut in between. Multi-year plans compare on Test Year 1. Money is in millions of dollars per year.</p>
+
+<div class="card" style="padding:12px 16px">
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a href="/benchmarks?sector=all" class="btn {% if sector != 'all' %}btn-sec{% endif %}" style="padding:6px 14px;font-size:13px">All</a>
+    <a href="/benchmarks?sector=electric" class="btn {% if sector != 'electric' %}btn-sec{% endif %}" style="padding:6px 14px;font-size:13px">Electric</a>
+    <a href="/benchmarks?sector=gas" class="btn {% if sector != 'gas' %}btn-sec{% endif %}" style="padding:6px 14px;font-size:13px">Gas</a>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Ohio landing zone</h3>
+  <p class="muted" style="margin-top:-6px">Across decided and stipulated cases with a granted return on file.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">
+    <div><span class="big">{% if landing.median_roe is not none %}{{ "%.2f"|format(landing.median_roe) }}%{% else %}—{% endif %}</span><br><span class="muted">Median granted ROE</span></div>
+    <div><span class="big">{% if landing.median_haircut is not none %}{{ "%.1f"|format(landing.median_haircut) }}%{% else %}—{% endif %}</span><br><span class="muted">Median haircut vs. asked</span></div>
+    <div><span class="big">{{ landing.n_granted }}</span><br><span class="muted">Cases with a granted return</span></div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Asked vs. granted, by case</h3>
+  {% if rows %}
+  <div class="wrap"><table>
+    <tr><th>Utility</th><th>Case</th><th>Asked</th><th>Granted</th><th>Haircut</th><th>Asked ROE</th><th>Granted ROE</th><th>Give</th><th>Equity</th><th>Rate base</th></tr>
+    {% for r in rows %}
+    <tr>
+      <td><strong>{{ r.utility.name }}</strong></td>
+      <td><a href="/cases/{{ r.case.id }}">{{ r.case.docket }}</a></td>
+      <td>{% if r.asked.revenue_change is not none %}{% if r.asked.revenue_change >= 0 %}+{% endif %}${{ "%.1f"|format(r.asked.revenue_change) }}M{% else %}—{% endif %}</td>
+      <td>{% if r.final and r.final.revenue_change is not none %}{% if r.final.revenue_change >= 0 %}+{% endif %}${{ "%.1f"|format(r.final.revenue_change) }}M{% else %}—{% endif %}</td>
+      <td>{% if r.haircut is not none %}{% if r.haircut >= 0 %}+{% endif %}${{ "%.1f"|format(r.haircut) }}M{% if r.haircut_pct is not none %} ({{ "%.1f"|format(r.haircut_pct) }}%){% endif %}{% else %}—{% endif %}</td>
+      <td>{% if r.asked.roe is not none %}{{ "%.2f"|format(r.asked.roe) }}%{% else %}—{% endif %}</td>
+      <td>{% if r.final and r.final.roe is not none %}{{ "%.2f"|format(r.final.roe) }}%{% else %}—{% endif %}</td>
+      <td>{% if r.give_roe is not none %}{{ "%+.2f"|format(r.give_roe) }} pp{% else %}—{% endif %}</td>
+      <td>{% if r.asked.equity_ratio is not none %}{{ "%.2f"|format(r.asked.equity_ratio) }}%{% if r.final and r.final.equity_ratio is not none %} → {{ "%.2f"|format(r.final.equity_ratio) }}%{% endif %}{% else %}—{% endif %}</td>
+      <td>{% if r.final and r.final.rate_base is not none %}${{ "%.1f"|format(r.final.rate_base) }}M{% elif r.asked.rate_base is not none %}${{ "%.1f"|format(r.asked.rate_base) }}M{% else %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  <p class="muted">Haircut = granted minus asked; negative means the utility got less than it asked for. Stipulations are settlements, not final orders — AES 25-0958's stipulated figures are shown as granted but still await a Commission decision.</p>
+  {% else %}
+  <p class="muted" style="margin-bottom:0">No as-filed positions on file for this sector yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

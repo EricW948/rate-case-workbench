@@ -48,6 +48,36 @@
 </div>
 {% endfor %}
 
+{% if bridge %}
+<h3>Settlement bridge</h3>
+<p class="muted">What moved from as-filed to final — the give, line by line. A negative give means the utility settled for less than it asked for.</p>
+{% for period, rows in bridge.items() %}
+<div class="card">
+  <h3>{{ period }}</h3>
+  <div class="wrap">
+  <table>
+    <tr><th></th><th>As filed</th><th>Staff</th><th>Final / stipulation</th><th>Give (final &minus; asked)</th></tr>
+    {% for r in rows %}
+    <tr><td><strong>{{ r.label }}</strong></td><td>{{ r.asked or "—" }}</td><td>{{ r.staff or "—" }}</td><td>{{ r.final or "—" }}</td><td>{{ r.give or "—" }}</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if case.milestones %}
+<div class="card">
+  <h3>Dates on the calendar</h3>
+  <div class="wrap"><table>
+    <tr><th>Date</th><th>What</th><th>Type</th></tr>
+    {% for m in case.milestones|sort(attribute="due_date") %}
+    <tr><td>{{ m.due_date }}</td><td><strong>{{ m.label }}</strong>{% if m.notes %}<br><span class="muted">{{ m.notes }}</span>{% endif %}</td><td>{{ kind_labels[m.kind] }}</td></tr>
+    {% endfor %}
+  </table></div>
+</div>
+{% endif %}
+
 {% if case.documents %}
 <div class="card">
   <h3>Source documents</h3>

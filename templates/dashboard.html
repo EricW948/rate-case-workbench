@@ -56,6 +56,18 @@
   {% endif %}
 </div>
 {% endif %}
+{% if deadlines %}
+<div class="card" style="border-left:4px solid #1d4ed8">
+  <h3><a href="/deadlines" style="color:inherit;text-decoration:none">Upcoming deadlines</a></h3>
+  <div class="wrap"><table>
+    <tr><th>Date</th><th>What</th><th>Case</th></tr>
+    {% for d in deadlines %}
+    <tr><td>{{ d.date }}</td><td><strong>{{ d.label }}</strong><br><span class="muted">{{ d.utility }}</span></td><td><a href="/cases/{{ d.case_id }}">{{ d.docket }}</a></td></tr>
+    {% endfor %}
+  </table></div>
+  <p style="margin:10px 0 0"><a href="/deadlines" class="btn btn-sec" style="padding:6px 14px;font-size:13px">Full deadline calendar</a></p>
+</div>
+{% endif %}
 <div class="card">
   <h3>How to read this</h3>
   <p class="muted" style="margin-bottom:0"><strong>ROE</strong> is the profit rate regulators allow the utility to earn (return on equity).

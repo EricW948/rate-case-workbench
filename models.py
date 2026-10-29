@@ -65,6 +65,7 @@ class Case(Base):
     discovery = relationship("DiscoveryRequest", back_populates="case", cascade="all, delete-orphan")
     experts = relationship("ExpertWitness", back_populates="case", cascade="all, delete-orphan")
     scenarios = relationship("Scenario", back_populates="case", cascade="all, delete-orphan")
+    milestones = relationship("Milestone", back_populates="case", cascade="all, delete-orphan")
     customer_classes = relationship("CustomerClass", back_populates="case",
                                     cascade="all, delete-orphan")
 
@@ -107,6 +108,20 @@ class TariffRider(Base):
     notes = Column(Text)
 
     utility = relationship("Utility", back_populates="riders")
+
+
+class Milestone(Base):
+    """Phase 1 deadline machine: a dated obligation on a case — hearing,
+    testimony, comments, filing, decision. Merged with open discovery and
+    pending expert testimony on the /deadlines page."""
+    __tablename__ = "milestones"
+    id = Column(Integer, primary_key=True)
+    case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
+    label = Column(String(300), nullable=False)
+    due_date = Column(String(10), nullable=False)  # YYYY-MM-DD
+    kind = Column(String(20), default="deadline")
+    notes = Column(Text)
+    case = relationship("Case", back_populates="milestones")
 
 
 class Document(Base):

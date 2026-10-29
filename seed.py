@@ -11,7 +11,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import database
 from database import init_db
-from models import Utility, ServiceArea, Case, ThreeWayPosition, TariffRider, Document, EarnedROE, DiscoveryRequest, ExpertWitness
+from models import Utility, ServiceArea, Case, ThreeWayPosition, TariffRider, Document, EarnedROE, DiscoveryRequest, ExpertWitness, Milestone
 
 
 # Stock tickers for the dashboard/landing pages (display only).
@@ -52,6 +52,34 @@ def get_or_create_utility(db, name, sector="electric"):
     if parent and u.parent_company != parent:
         u.parent_company = parent
     return u
+
+
+def ensure_milestone(db, case, label, due_date, kind="deadline", notes=None):
+    """Phase 1 deadline machine: create-if-missing, keyed case + label + date."""
+    m = db.query(Milestone).filter(
+        Milestone.case_id == case.id, Milestone.label == label,
+        Milestone.due_date == due_date).first()
+    if not m:
+        m = Milestone(case_id=case.id, label=label, due_date=due_date,
+                      kind=kind, notes=notes)
+        db.add(m)
+    return m
+
+
+# Phase 1 (2026-10-29): dated obligations on open cases, from tracked dockets.
+# Never invent dates: AES 25-0958 (decision date unknown) and Columbia 26-0965
+# (no dated milestones on record) have none.
+PHASE1_MILESTONES = [
+    ("26-0974-EL-SSO", "Evidentiary hearing (10 AM, Room 11-A)", "2026-11-12", "hearing", "AES SSO evidentiary hearing."),
+    ("26-0755-EL-ATA", "Replies and interventions due", "2026-11-12", "comments", "Duke Rate DC replies and interventions due."),
+    ("26-0132-EL-AIR", "Local public hearing \u2014 Middletown (6 PM)", "2026-12-01", "hearing", "Duke Energy Ohio (Electric) local public hearing."),
+    ("26-0132-EL-AIR", "Local public hearings \u2014 Cincinnati/Hamilton (12:30 PM and 6 PM)", "2026-12-10", "hearing", "Duke Energy Ohio (Electric) local public hearings."),
+    ("26-0505-EL-FOR", "Intervenor testimony due", "2026-12-14", "testimony", "AES forecast intervenor testimony due."),
+    ("26-0505-EL-FOR", "Discovery cutoff", "2026-12-28", "deadline", "AES forecast discovery cutoff."),
+    ("26-0505-EL-FOR", "Staff testimony due", "2027-01-05", "testimony", "AES forecast Staff testimony due."),
+    ("26-0505-EL-FOR", "Evidentiary hearing", "2027-01-12", "hearing", "AES forecast evidentiary hearing."),
+    ("26-0132-EL-AIR", "Evidentiary hearing", "2027-01-20", "hearing", "Docket states no start time; 10 AM is the standard PUCO start \u2014 verify."),
+]
 
 
 def get_or_create_case(db, docket, utility, **kw):
@@ -1012,6 +1040,12 @@ def seed():
               "(Marcelletti) granted expedited continuance. "
               "Next milestones: intervenor testimony 12/14/2026; discovery "
               "cutoff 12/28/2026; Staff testimony 1/5/2027; hearing 1/12/2027.")
+
+    # Phase 1 milestones (2026-10-29): dated obligations on open cases.
+    for docket, label, due, kind, notes in PHASE1_MILESTONES:
+        mc = db.query(Case).filter(Case.docket == docket).first()
+        if mc:
+            ensure_milestone(db, mc, label, due, kind, notes)
 
     db.commit()
     db.close()

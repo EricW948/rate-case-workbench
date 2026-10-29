@@ -18,7 +18,8 @@ import hashlib
 import database
 from database import init_db, get_db
 from models import (Utility, ServiceArea, Case, ThreeWayPosition, TariffRider, Document,
-                    EarnedROE, DiscoveryRequest, ExpertWitness, Scenario, ScenarioAdjustment)
+                    EarnedROE, DiscoveryRequest, ExpertWitness, Scenario, ScenarioAdjustment,
+                    Milestone)
 import seed as seed_module
 import excel_templates
 import excel_import
@@ -56,6 +57,8 @@ DR_STATUS_LABELS = {"open": "Open", "in_progress": "In progress", "in_review": "
 EXPERT_SIDE_LABELS = {"utility": "Ours", "staff": "Staff", "intervenor": "Intervenor"}
 EXPERT_STATUS_LABELS = {"retained": "Retained", "drafting": "Drafting", "filed": "Filed",
                         "testified": "Testified", "withdrawn": "Withdrawn"}
+KIND_LABELS = {"hearing": "Hearing", "testimony": "Testimony due", "comments": "Comments due",
+               "filing": "Filing due", "decision": "Decision", "deadline": "Deadline"}
 TEST_PERIOD_LABELS = {"historic": "Historic test year",
                       "historic_adjusted": "Historic + pro forma adjustments",
                       "future_test_year": "Future test year",
@@ -201,6 +204,16 @@ def startup():
                 if u and not db.query(Case).filter(Case.docket == docket).first():
                     db.add(Case(docket=docket, utility_id=u.id,
                                 case_type="other", status="pending", notes=notes))
+            # Phase 1 deadline machine (2026-10-29): structured milestones for
+            # open cases, shared with seed.py so existing production DBs get
+            # the same calendar. Create-if-missing, same as Tier 2 above.
+            for docket, label, due, kind, notes in seed_module.PHASE1_MILESTONES:
+                mc = db.query(Case).filter(Case.docket == docket).first()
+                if mc and not db.query(Milestone).filter(
+                        Milestone.case_id == mc.id, Milestone.label == label,
+                        Milestone.due_date == due).first():
+                    db.add(Milestone(case_id=mc.id, label=label, due_date=due,
+                                     kind=kind, notes=notes))
             db.commit()
     finally:
         db.close()
@@ -323,6 +336,134 @@ def position_grid(db, case):
     for key in sorted(by_period.keys(), key=lambda k: (k != "Single year", k)):
         ordered[key] = [(s, by_period[key].get(s)) for s in stages]
     return ordered
+
+
+def _ty1_positions(db, case):
+    """TY1-or-single-year positions by stage, the comparison basis used by
+    charts and benchmarks (multi-year plans compare on Test Year 1)."""
+    pos = {}
+    for p in db.query(ThreeWayPosition).filter(
+            ThreeWayPosition.case_id == case.id).all():
+        if not p.period or "TY1" in (p.period or ""):
+            pos[p.stage] = p
+    return pos
+
+
+def benchmark_rows(db, sector="all"):
+    """Phase 1: one row per case with an as-filed position — what was asked,
+    what was granted, and the haircut. Pending cases show asked with granted
+    blank. Returns (rows, landing-zone medians)."""
+    import statistics
+    rows = []
+    for c in db.query(Case).all():
+        if sector != "all" and (c.utility.sector or "electric") != sector:
+            continue
+        pos = _ty1_positions(db, c)
+        af, fn = pos.get("as_filed"), pos.get("final_or_stip")
+        if not af:
+            continue
+        haircut = haircut_pct = give_roe = None
+        if fn and af.revenue_change is not None and fn.revenue_change is not None:
+            haircut = fn.revenue_change - af.revenue_change
+            if af.revenue_change != 0:
+                haircut_pct = haircut / abs(af.revenue_change) * 100
+        if fn and af.roe is not None and fn.roe is not None:
+            give_roe = fn.roe - af.roe
+        rows.append({
+            "case": c, "utility": c.utility, "asked": af, "final": fn,
+            "staff": pos.get("staff"),
+            "haircut": haircut, "haircut_pct": haircut_pct, "give_roe": give_roe,
+        })
+    rows.sort(key=lambda r: (r["utility"].name, r["case"].docket))
+    granted_roes = [r["final"].roe for r in rows
+                    if r["final"] and r["final"].roe is not None
+                    and r["case"].status in ("decided", "stipulated")]
+    haircuts = [r["haircut_pct"] for r in rows if r["haircut_pct"] is not None]
+    landing = {
+        "median_roe": statistics.median(granted_roes) if granted_roes else None,
+        "median_haircut": statistics.median(haircuts) if haircuts else None,
+        "n_granted": len(granted_roes),
+    }
+    return rows, landing
+
+
+def _fmt_money(v):
+    if v is None:
+        return None
+    return ("+" if v >= 0 else "-") + f"${abs(v):.1f}M"
+
+
+def _fmt_pct(v):
+    return None if v is None else f"{v:.2f}%"
+
+
+def settlement_bridge(db, case):
+    """Phase 1: as-filed -> staff -> final walk, per period, for the case
+    page. Only periods with an as-filed position and at least one later
+    stage get a bridge; asked-only pending cases show nothing."""
+    bridge = {}
+    for period, cols in position_grid(db, case).items():
+        pos = dict(cols)
+        af, st, fn = pos.get("as_filed"), pos.get("staff"), pos.get("final_or_stip")
+        if not af or (not st and not fn):
+            continue
+        rows = []
+        for label, attr, fmt in (("Revenue change", "revenue_change", _fmt_money),
+                                 ("ROE", "roe", _fmt_pct),
+                                 ("Equity ratio", "equity_ratio", _fmt_pct),
+                                 ("Rate base", "rate_base", _fmt_money)):
+            a, s, f = (getattr(af, attr), getattr(st, attr) if st else None,
+                       getattr(fn, attr) if fn else None)
+            if a is None and s is None and f is None:
+                continue
+            give = (f - a) if (fn and a is not None and f is not None) else None
+            give_str = None
+            if give is not None:
+                give_str = (f"{give:+.2f} pp" if attr in ("roe", "equity_ratio")
+                            else _fmt_money(give))
+            rows.append({"label": label, "asked": fmt(a), "staff": fmt(s),
+                         "final": fmt(f), "give": give_str})
+        if rows:
+            bridge[period] = rows
+    return bridge
+
+
+def deadline_items(db):
+    """Phase 1: one timeline — case milestones + open discovery items +
+    pending expert testimony, sorted by date. Items without a date stay in
+    their own pages."""
+    items = []
+    for m in db.query(Milestone).all():
+        items.append({"date": m.due_date, "label": m.label, "kind": m.kind,
+                      "docket": m.case.docket, "case_id": m.case_id,
+                      "utility": m.case.utility.name, "source": "milestone",
+                      "notes": m.notes})
+    for r in db.query(DiscoveryRequest).filter(
+            ~DiscoveryRequest.status.in_(excel_import.DR_DONE)).all():
+        if not r.due_date:
+            continue
+        items.append({"date": r.due_date,
+                      "label": (f"{DR_TYPE_LABELS.get(r.request_type, r.request_type)} "
+                                f"{r.number or ''} from {r.requesting_party}").strip(),
+                      "kind": "deadline", "docket": r.case.docket, "case_id": r.case_id,
+                      "utility": r.case.utility.name, "source": "discovery",
+                      "notes": r.assigned_to or None})
+    for e in db.query(ExpertWitness).filter(
+            ~ExpertWitness.status.in_(["testified", "withdrawn"])).all():
+        if not e.testimony_due:
+            continue
+        items.append({"date": e.testimony_due,
+                      "label": f"{e.name} testimony" + (f" — {e.topic}" if e.topic else ""),
+                      "kind": "testimony", "docket": e.case.docket, "case_id": e.case_id,
+                      "utility": e.case.utility.name, "source": "expert",
+                      "notes": e.assigned_to or None})
+    items.sort(key=lambda i: (i["date"] or "9999", i["docket"], i["label"]))
+    return items
+
+
+def upcoming_deadlines(db, n=5):
+    today = date.today().isoformat()
+    return [i for i in deadline_items(db) if (i["date"] or "9999") >= today][:n]
 
 
 # ---------------------------------------------------------------- pages
@@ -612,6 +753,7 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         "request": request, "cards": dashboard_cards(db),
         "status_labels": STATUS_LABELS, "type_labels": TYPE_LABELS,
         "attention": regulatory_attention(db),
+        "deadlines": upcoming_deadlines(db, 5),
         "dr_status_labels": DR_STATUS_LABELS, "dr_type_labels": DR_TYPE_LABELS})
 
 
@@ -683,6 +825,7 @@ def case_detail(request: Request, case_id: int, db: Session = Depends(get_db)):
         "request": request, "case": case, "grid": position_grid(db, case),
         "stage_labels": STAGE_LABELS, "status_labels": STATUS_LABELS,
         "type_labels": TYPE_LABELS, "dis_url": dis_url, "is_docket": is_docket,
+        "bridge": settlement_bridge(db, case), "kind_labels": KIND_LABELS,
         "dr_type_labels": DR_TYPE_LABELS, "dr_status_labels": DR_STATUS_LABELS,
         "expert_status_labels": EXPERT_STATUS_LABELS,
         "expert_side_labels": EXPERT_SIDE_LABELS})
@@ -1131,6 +1274,31 @@ def chart_page(request: Request, db: Session = Depends(get_db)):
         "sector": sector,
         "rev_legend": charts.legend([(charts.SLATE, "As filed"), (charts.BLUE, "Final / stipulation")]),
         "roe_legend": charts.legend([(charts.AMBER, "Requested"), (charts.GREEN, "Authorized / settled")])})
+
+
+@app.get("/benchmarks", response_class=HTMLResponse)
+def benchmark_page(request: Request, db: Session = Depends(get_db)):
+    """Phase 1: peer benchmarking — asked vs. granted, haircuts, and the
+    Ohio landing zone, as a table the charts page can't show."""
+    sector = request.query_params.get("sector", "all")
+    if sector not in ("all", "electric", "gas"):
+        sector = "all"
+    rows, landing = benchmark_rows(db, sector)
+    return templates.TemplateResponse(request, "benchmarks.html", {
+        "request": request, "rows": rows, "landing": landing, "sector": sector})
+
+
+@app.get("/deadlines", response_class=HTMLResponse)
+def deadline_page(request: Request, db: Session = Depends(get_db)):
+    """Phase 1: the deadline machine — every dated obligation across every
+    case, overdue first, then upcoming."""
+    today = date.today().isoformat()
+    items = deadline_items(db)
+    overdue = [i for i in items if (i["date"] or "9999") < today]
+    upcoming = [i for i in items if (i["date"] or "9999") >= today]
+    return templates.TemplateResponse(request, "deadlines.html", {
+        "request": request, "overdue": overdue, "upcoming": upcoming,
+        "today": today, "kind_labels": KIND_LABELS})
 
 
 # ---------------------------------------------------------------- import
