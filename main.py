@@ -172,6 +172,35 @@ def startup():
                         p.notes = notes
                         if period == "TY1 2028":
                             p.revenue_requirement = 604.5
+            # Tier 2 open-docket records (2026-10-29): non-rate-case proceedings
+            # tracked as milestones only — no rate-case build, no positions.
+            # Same records as seed.py; create-if-missing so existing production
+            # DBs (which never re-run seed) pick them up on startup.
+            for docket, util_name, notes in (
+                ("26-0974-EL-SSO", "AES Ohio",
+                 "Tier 2 docket record — milestones only, no rate-case build. "
+                 "AES Ohio Market Rate Offer / Standard Service Offer case. "
+                 "Companion dockets 26-0975-EL-RDR, 26-0976-EL-AAM. "
+                 "Staff Report was due 10/16/2026; intervention deadline closed "
+                 "10/23/2026; prehearing 10/28/2026 (10 AM, Room 11-C). "
+                 "Next milestone: evidentiary hearing 11/12/2026 (10 AM, Room 11-A)."),
+                ("26-0755-EL-ATA", "Duke Energy Ohio (Electric)",
+                 "Tier 2 docket record — milestones only, no rate-case build. "
+                 "Duke Energy Ohio data-center / large-load tariff proposal "
+                 "(metering and cost-responsibility options; OCC backs 100% "
+                 "data-center payment of dedicated line-extension/substation costs). "
+                 "Comments filed 10/22/2026. "
+                 "Next milestone: replies and interventions due 11/12/2026."),
+                ("26-0505-EL-FOR", "AES Ohio",
+                 "Tier 2 docket record — milestones only, no rate-case build. "
+                 "AES Ohio long-term forecast docket. ALJ Entry 10/14/2026 "
+                 "(Marcelletti) granted expedited continuance. "
+                 "Next milestones: intervenor testimony 12/14/2026; discovery "
+                 "cutoff 12/28/2026; Staff testimony 1/5/2027; hearing 1/12/2027.")):
+                u = db.query(Utility).filter(Utility.name == util_name).first()
+                if u and not db.query(Case).filter(Case.docket == docket).first():
+                    db.add(Case(docket=docket, utility_id=u.id,
+                                case_type="other", status="pending", notes=notes))
             db.commit()
     finally:
         db.close()

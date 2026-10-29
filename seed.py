@@ -983,6 +983,36 @@ def seed():
         upsert_earned_roe(db, fe, year, val, GABELLI_SRC,
                           notes="Ohio Edison Co. only - not CEI or Toledo Edison.")
 
+    # Tier 2 open-docket records (2026-10-29): non-rate-case proceedings tracked
+    # as milestones only — no rate-case build, no positions. They surface on the
+    # utility Pending Cases ("Active dockets") tab via status="pending" with
+    # case_type="other" ("Other proceeding"). Filed dates are left blank where
+    # the tracked record does not state them — never invented. Milestones are
+    # as tracked Oct 2026; verify current status on DIS before relying on dates.
+    get_or_create_case(
+        db, "26-0974-EL-SSO", aes, case_type="other", status="pending",
+        notes="Tier 2 docket record — milestones only, no rate-case build. "
+              "AES Ohio Market Rate Offer / Standard Service Offer case. "
+              "Companion dockets 26-0975-EL-RDR, 26-0976-EL-AAM. "
+              "Staff Report was due 10/16/2026; intervention deadline closed "
+              "10/23/2026; prehearing 10/28/2026 (10 AM, Room 11-C). "
+              "Next milestone: evidentiary hearing 11/12/2026 (10 AM, Room 11-A).")
+    get_or_create_case(
+        db, "26-0755-EL-ATA", duke_elec, case_type="other", status="pending",
+        notes="Tier 2 docket record — milestones only, no rate-case build. "
+              "Duke Energy Ohio data-center / large-load tariff proposal "
+              "(metering and cost-responsibility options; OCC backs 100% "
+              "data-center payment of dedicated line-extension/substation costs). "
+              "Comments filed 10/22/2026. "
+              "Next milestone: replies and interventions due 11/12/2026.")
+    get_or_create_case(
+        db, "26-0505-EL-FOR", aes, case_type="other", status="pending",
+        notes="Tier 2 docket record — milestones only, no rate-case build. "
+              "AES Ohio long-term forecast docket. ALJ Entry 10/14/2026 "
+              "(Marcelletti) granted expedited continuance. "
+              "Next milestones: intervenor testimony 12/14/2026; discovery "
+              "cutoff 12/28/2026; Staff testimony 1/5/2027; hearing 1/12/2027.")
+
     db.commit()
     db.close()
     print("Seed complete.")
