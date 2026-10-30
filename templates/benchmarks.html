@@ -24,6 +24,7 @@
 
 <div class="card">
   <h3>Asked vs. granted, by case</h3>
+  <p class="muted" style="margin-top:-6px">Coverage: {{ coverage.shown }} of {{ coverage.total }} {% if sector == "all" %}rate cases{% else %}{{ sector }} cases{% endif %} have an as-filed position on file.{% if coverage.dropped %} Not benchmarked yet — positions not extracted: {% for c in coverage.dropped %}<a href="/cases/{{ c.id }}">{{ c.docket }}</a>{% if not loop.last %}, {% endif %}{% endfor %}. Their case pages carry what the record states.{% endif %}</p>
   {% if rows %}
   <div class="wrap"><table>
     <tr><th>Utility</th><th>Case</th><th>Asked</th><th>Granted</th><th>Haircut</th><th>Asked ROE</th><th>Granted ROE</th><th>Give</th><th>Equity</th><th>Rate base</th></tr>

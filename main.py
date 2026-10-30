@@ -214,6 +214,31 @@ def startup():
                         Milestone.due_date == due).first():
                     db.add(Milestone(case_id=mc.id, label=label, due_date=due,
                                      kind=kind, notes=notes))
+            # Gas position extraction (2026-10-29): positions for the seven
+            # gas cases that had case rows but no build, shared with
+            # seed.py. Create-if-missing so existing production DBs pick
+            # them up on startup.
+            for docket, stage, kw in seed_module.GAS_POSITIONS:
+                gc = db.query(Case).filter(Case.docket == docket).first()
+                if gc and not db.query(ThreeWayPosition).filter(
+                        ThreeWayPosition.case_id == gc.id,
+                        ThreeWayPosition.stage == stage,
+                        ThreeWayPosition.period.is_(None)).first():
+                    db.add(ThreeWayPosition(case_id=gc.id, stage=stage,
+                                            period=None, **kw))
+            # Correct the two case notes the extraction supersedes.
+            c83 = db.query(Case).filter(Case.docket == "24-0832-GA-AIR").first()
+            if c83 and c83.notes and "NOT verified from the application" in c83.notes:
+                c83.notes = c83.notes.replace(
+                    "Requested revenue ~$100M per secondary sources "
+                    "(NOT verified from the application).",
+                    "Requested $99.5M per State Affairs report of the filing.")
+            c1097 = db.query(Case).filter(Case.docket == "25-1097-GA-AIR").first()
+            if c1097 and c1097.notes and "144.6M" not in c1097.notes:
+                c1097.notes = c1097.notes.replace(
+                    "Requested vs. approved revenue not shown on docket card.",
+                    "Stipulation proposes ~$144.6M at 7.14% overall return / "
+                    "9.59% ROE vs ~$163.1M requested (Brakey Energy report).")
             db.commit()
     finally:
         db.close()
@@ -385,6 +410,26 @@ def benchmark_rows(db, sector="all"):
         "n_granted": len(granted_roes),
     }
     return rows, landing
+
+
+def benchmark_coverage(db, sector="all"):
+    """Why a filtered benchmarks table can look thin: it only shows cases
+    with an as-filed TY1/single-year position on file. Rate cases without
+    one (positions never extracted — see their case notes) are listed here
+    instead of silently vanishing. Tier 2 docket records are not rate cases
+    and are excluded from both counts."""
+    rows, _landing = benchmark_rows(db, sector)
+    shown_ids = {r["case"].id for r in rows}
+    total = []
+    for c in db.query(Case).all():
+        if c.case_type == "other":
+            continue
+        if sector != "all" and (c.utility.sector or "electric") != sector:
+            continue
+        total.append(c)
+    dropped = sorted((c for c in total if c.id not in shown_ids),
+                     key=lambda c: c.docket)
+    return {"total": len(total), "shown": len(shown_ids), "dropped": dropped}
 
 
 def _fmt_money(v):
@@ -1285,7 +1330,8 @@ def benchmark_page(request: Request, db: Session = Depends(get_db)):
         sector = "all"
     rows, landing = benchmark_rows(db, sector)
     return templates.TemplateResponse(request, "benchmarks.html", {
-        "request": request, "rows": rows, "landing": landing, "sector": sector})
+        "request": request, "rows": rows, "landing": landing, "sector": sector,
+        "coverage": benchmark_coverage(db, sector)})
 
 
 @app.get("/deadlines", response_class=HTMLResponse)

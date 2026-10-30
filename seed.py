@@ -82,6 +82,83 @@ PHASE1_MILESTONES = [
 ]
 
 
+# Gas position extraction (2026-10-29): three-way positions for the seven
+# gas cases that previously had case rows but no positions, researched
+# from PUCO hearing notices, OCC alerts, company SEC filings, State
+# Affairs, and the Brakey Energy report. Figures marked "approximately"
+# in their source stay approximate here; ranges live in notes, never as
+# invented point figures; anything not found stays blank. The 24-0832
+# final position is NOT listed — it is already on file from the O&O.
+# (docket, stage, {position kwargs})
+GAS_POSITIONS = [
+    ("18-0298-GA-AIR", "as_filed", dict(
+        revenue_change=34.0,
+        notes="Filed 3/30/2018 per CenterPoint SEC 8-K: $34M base-rate "
+              "increase request for VEDO's 17-county distribution business.")),
+    ("18-0298-GA-AIR", "final_or_stip", dict(
+        revenue_change=22.7,
+        notes="O&O 8/28/2019 adopted the Jan 2019 stipulation: increase of "
+              "nearly $22.7M; overall rate of return 7.48% (The Fly report "
+              "of the order). ROE and rate base not on file.")),
+    ("21-0637-GA-AIR", "as_filed", dict(
+        revenue_change=221.429, roe=10.95,
+        notes="Application 6/30/2021: $221,429,000 increase per PUCO "
+              "hearing notice; requested ROE 10.95% per SFR schedules "
+              "(via Paldrin snapshot). ")),
+    ("21-0637-GA-AIR", "staff", dict(
+        notes="Staff Report: recommended increase $35,197,000–$57,554,000 "
+              "per PUCO hearing notice (range, no point figure recorded). ")),
+    ("21-0637-GA-AIR", "final_or_stip", dict(
+        revenue_change=68.0, roe=9.60, equity_ratio=50.6,
+        rate_base=3510.0,
+        notes="O&O 1/26/2023 modified/adopted stipulation: about $68M "
+              "increase; ROE 9.60%, equity 50.6%, rate base $3.51B per "
+              "Paldrin snapshot verified against the O&O. Affirmed by "
+              "the Ohio Supreme Court 6/25/2026 (2026-Ohio-2381). ")),
+    ("22-0507-GA-AIR", "as_filed", dict(
+        revenue_change=49.0, roe=10.3,
+        notes="Application 6/30/2022 per Duke SEC filings: approximately "
+              "$49M base-rate increase, ROE 10.3%. ")),
+    ("22-0507-GA-AIR", "staff", dict(
+        equity_ratio=52.32,
+        notes="Staff Report 12/21/2022 per Duke SEC filings: recommended "
+              "$24–36M increase (range), equity 52.32%, ROE range "
+              "9.03–10.04%. ")),
+    ("22-0507-GA-AIR", "final_or_stip", dict(
+        revenue_change=32.0, roe=9.6, equity_ratio=52.32,
+        notes="Stipulation 4/28/2023 (all parties except OCC), O&O "
+              "11/1/2023 approving as filed: approximately $32M increase, "
+              "equity 52.32%, ROE 9.6% (Duke SEC filings). ")),
+    ("23-0894-GA-AIR", "as_filed", dict(
+        revenue_change=212.0,
+        notes="Application 10/31/2023: $212M proposed increase per OCC "
+              "(30% distribution hike). ")),
+    ("23-0894-GA-AIR", "final_or_stip", dict(
+        revenue_change=-26.3, roe=9.79,
+        notes="O&O 6/26/2025: $26M rate decrease (Paldrin: -$26.3M "
+              "verified against the O&O); approved ROE 9.79%. Appealed "
+              "to the Ohio Supreme Court (No. 2025-1622); Commission "
+              "orders final. ")),
+    ("24-0832-GA-AIR", "as_filed", dict(
+        revenue_change=99.5,
+        notes="Application 10/29/2024: $99.5M annual base distribution "
+              "increase per State Affairs report of the filing. ")),
+    ("24-0832-GA-AIR", "staff", dict(
+        notes="Staff recommended a $25.1–34.6M increase per State "
+              "Affairs report (range, no point figure recorded). ")),
+    ("25-1097-GA-AIR", "as_filed", dict(
+        revenue_change=163.1,
+        notes="Application 12/31/2025: roughly $163.1M requested per "
+              "Brakey Energy report of the 9/15/2026 stipulation filing. "
+              "Staff Report issued 7/6/2026; figure not yet extracted. ")),
+    ("26-0635-GA-AIR", "as_filed", dict(
+        revenue_change=102.0, roe=10.5, equity_ratio=53.14,
+        notes="Application filed 6/29/2026 per Duke 10-Q: approximately "
+              "$102M annualized base-rate increase, ROE 10.5%, equity "
+              "53.14%. Staff Report due 1/11/2027; hearing 3/30/2027. ")),
+]
+
+
 def get_or_create_case(db, docket, utility, **kw):
     c = db.query(Case).filter(Case.docket == docket).first()
     if not c:
@@ -768,7 +845,8 @@ def seed():
                                  "(accepted for filing Feb 2026). Staff Report 07/06/2026. Joint "
                                  "Stipulation filed 09/11/2026 is CONTESTED (OCC and NOPEC "
                                  "testimony opposing, 09/16-09/25/2026). No final order. "
-                                 "Requested vs. approved revenue not shown on docket card.")
+                                 "Stipulation proposes ~$144.6M at 7.14% overall return / "
+                                 "9.59% ROE vs ~$163.1M requested (Brakey Energy report).")
     # ---- 23-0894-GA-AIR : Enbridge Gas Ohio (most recent completed base case) ----
     c = get_or_create_case(db, "23-0894-GA-AIR", enbridge, case_type="historical",
                            status="decided", date_filed="2023-10-31", date_order="2025-06-26",
@@ -979,8 +1057,8 @@ def seed():
                                  "stipulation resolving all issues. DIS shows OPEN "
                                  "(compliance/tariff phase; revised tariff pages filed "
                                  "01/09/2026). Companions: 24-0833-GA-ALT, 24-0834-GA-AAM, "
-                                 "24-0835-GA-ATA. Requested revenue ~$100M per secondary "
-                                 "sources (NOT verified from the application).")
+                                 "24-0835-GA-ATA. Requested $99.5M per State Affairs "
+                                 "report of the filing.")
     upsert_position(db, c, "final_or_stip", revenue_requirement=371.442,
                     revenue_change=59.740, rate_base=1437.626,
                     notes="Per O&O: revenue requirement $371,441,948; deficiency "
@@ -1046,6 +1124,13 @@ def seed():
         mc = db.query(Case).filter(Case.docket == docket).first()
         if mc:
             ensure_milestone(db, mc, label, due, kind, notes)
+
+    # Gas position extraction (2026-10-29): positions for the seven gas
+    # cases that had case rows but no build. Upsert is idempotent.
+    for docket, stage, kw in GAS_POSITIONS:
+        c = db.query(Case).filter(Case.docket == docket).first()
+        if c:
+            upsert_position(db, c, stage, **kw)
 
     db.commit()
     db.close()

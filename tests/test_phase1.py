@@ -115,3 +115,37 @@ def test_upcoming_deadlines_sorted(db):
     dates = [u["date"] for u in ups]
     assert dates == sorted(dates)
     assert dates[0] == "2026-11-12"
+
+
+def test_benchmark_coverage_names_the_gap(db):
+    """Gas used to show one utility because only one gas case had an
+    as-filed position on file. After the 2026-10-29 extraction all eight
+    do; the dropped list still works for any future position-less case."""
+    seed.seed()
+    db.expire_all()
+    import main
+    gas = main.benchmark_coverage(db, "gas")
+    assert gas["total"] == 8
+    assert gas["shown"] == 8
+    assert gas["dropped"] == []
+    everything = main.benchmark_coverage(db, "all")
+    assert everything["total"] == 18
+    assert everything["shown"] == 18
+    # A synthetic position-less rate case reappears in the dropped list.
+    from models import Utility, Case
+    u = Utility(name="Ghost Gas", sector="gas")
+    db.add(u)
+    db.flush()
+    db.add(Case(docket="99-9999-GA-AIR", utility_id=u.id,
+                case_type="historical", status="decided"))
+    db.commit()
+    db.expire_all()
+    gas = main.benchmark_coverage(db, "gas")
+    assert gas["total"] == 9 and gas["shown"] == 8
+    assert [c.docket for c in gas["dropped"]] == ["99-9999-GA-AIR"]
+    from fastapi.testclient import TestClient
+    with TestClient(main.app) as client:
+        g = client.get("/benchmarks?sector=gas")
+        assert g.status_code == 200
+        assert "Coverage: 8 of 9" in g.text
+        assert "99-9999-GA-AIR" in g.text
