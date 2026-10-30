@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 from io import BytesIO
 
 from fastapi import FastAPI, Request, Depends, UploadFile, File, Form
-from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -93,6 +93,27 @@ def startup():
                 u = db.query(Utility).filter(Utility.name == name).first()
                 if u and u.sector != "gas":
                     u.sector = "gas"
+            # One-time correction: record the stated AES 25-0958 equity
+            # ratios as numbers (transcribed from the capital-structure
+            # strings already on file) so EPS translation can run. As-filed
+            # stays blank: its "~52% (implied)" is derived, not stated.
+            # Only fills blanks, never overwrites.
+            from models import Case as _Case95, ThreeWayPosition as _TWP
+            c95 = db.query(_Case95).filter(
+                _Case95.docket == "25-0958-EL-AIR").first()
+            if c95:
+                for stage, ratios in (
+                        ("staff", {"TY1 2027": 50.0, "TY2 2028": 50.0,
+                                   "TY3 2029": 50.0}),
+                        ("final_or_stip", {"TY1 2027": 53.37,
+                                           "TY2 2028": 52.00,
+                                           "TY3 2029": 50.50})):
+                    for period, eq in ratios.items():
+                        p = db.query(_TWP).filter(
+                            _TWP.case_id == c95.id, _TWP.stage == stage,
+                            _TWP.period == period).first()
+                        if p and p.equity_ratio is None:
+                            p.equity_ratio = eq
             # One-time correction: populate FirstEnergy 24-0468-EL-AIR positions
             # (as-filed $190M / 10.8% ROE; final $34M / 9.63% ROE per PUCO order).
             from models import Case, ThreeWayPosition
@@ -430,6 +451,206 @@ def benchmark_coverage(db, sector="all"):
     dropped = sorted((c for c in total if c.id not in shown_ids),
                      key=lambda c: c.docket)
     return {"total": len(total), "shown": len(shown_ids), "dropped": dropped}
+
+
+# ------------------------------------------------------------------ Phase 2:
+# executive lens — EPS translation, portfolio totals, scenario sliders,
+# board-brief PDF. Same case data as the regulatory view, at a different
+# altitude: outcomes and dollars, not dockets and discovery.
+#
+# EPS method: equity earnings ($M) = rate base x equity share x ROE.
+# ROE is an after-tax return, so no tax adjustment. EPS ($) = equity
+# earnings / parent shares outstanding (millions). Shares are entered by
+# hand on the utility page and never guessed; stages missing any input
+# show a dash instead of an invented number.
+
+def eps_translation(db, case):
+    shares = case.utility.shares_outstanding_m
+    pos = _ty1_positions(db, case)
+    rows = []
+    for stage in ("as_filed", "staff", "final_or_stip"):
+        p = pos.get(stage)
+        earnings = eps = None
+        if (p and p.rate_base is not None and p.equity_ratio is not None
+                and p.roe is not None):
+            earnings = p.rate_base * (p.equity_ratio / 100.0) * (p.roe / 100.0)
+            if shares:
+                eps = earnings / shares
+        rows.append({"stage": stage, "earnings": earnings, "eps": eps})
+    give_earnings = give_eps = None
+    if rows[0]["earnings"] is not None and rows[2]["earnings"] is not None:
+        give_earnings = rows[2]["earnings"] - rows[0]["earnings"]
+    if rows[0]["eps"] is not None and rows[2]["eps"] is not None:
+        give_eps = rows[2]["eps"] - rows[0]["eps"]
+    return {"rows": rows, "shares": shares, "give_earnings": give_earnings,
+            "give_eps": give_eps}
+
+
+def portfolio_totals(db):
+    """Executive dashboard strip: TY1 asked vs granted across benchmarked
+    cases, under the same coverage rule as the benchmarks page."""
+    rows, _landing = benchmark_rows(db, "all")
+    asked = sum(r["asked"].revenue_change or 0 for r in rows
+                if r["asked"].revenue_change is not None)
+    granted = sum(r["final"].revenue_change or 0 for r in rows
+                  if r["final"] and r["final"].revenue_change is not None)
+    return {"n": len(rows), "asked": asked, "granted": granted}
+
+
+def slider_state(db, case, params):
+    """What-if on the TY1 as-filed build. Levers come from query params and
+    default to the as-filed values. Equity earnings and EPS need only rate
+    base, ROE, and equity ratio, so they always compute; revenue
+    requirement and overall return additionally need cost of debt and
+    appear only when it is on file. Returns None when even the earnings
+    inputs are incomplete; the page then points at the workbench instead
+    of inventing defaults."""
+    af = _ty1_positions(db, case).get("as_filed")
+    if (not af or af.rate_base is None or af.roe is None
+            or af.equity_ratio is None):
+        return None
+
+    def _f(name, default, lo, hi):
+        try:
+            v = float(params.get(name, default))
+        except (TypeError, ValueError):
+            v = default
+        return min(hi, max(lo, v))
+
+    roe = _f("roe", af.roe, 5.0, 15.0)
+    equity = _f("equity", af.equity_ratio, 30.0, 70.0)
+    rb_pct = _f("rb_pct", 100.0, 50.0, 150.0)
+    rb = af.rate_base * rb_pct / 100.0
+    earnings = rb * (equity / 100.0) * (roe / 100.0)
+    base_earnings = (af.rate_base * (af.equity_ratio / 100.0)
+                     * (af.roe / 100.0))
+    shares = case.utility.shares_outstanding_m
+    out = {"roe": roe, "equity": equity, "rb_pct": rb_pct,
+           "rate_base": rb, "base_rate_base": af.rate_base,
+           "earnings": earnings, "base_earnings": base_earnings,
+           "delta_earnings": earnings - base_earnings,
+           "eps": (earnings / shares if shares else None),
+           "cod": None, "rr": None, "ror_pct": None, "base_rr": None,
+           "delta_rr": None}
+    if af.cost_of_debt is not None:
+        cod = _f("cod", af.cost_of_debt, 2.0, 8.0)
+        rr = rr_from_inputs(rb, equity, roe, cod, af.opex, af.depreciation,
+                            af.taxes)
+        out.update({"cod": cod, "rr": rr,
+                    "ror_pct": _ror(equity, roe, cod) * 100.0,
+                    "base_rr": af.revenue_requirement,
+                    "delta_rr": (rr - af.revenue_requirement
+                                 if af.revenue_requirement is not None
+                                 else None)})
+    return out
+
+
+def board_brief_pdf(db, case):
+    """One-page board brief: ask vs outcome, EPS, next dates. Reportlab is
+    pure Python, so the Railway image needs nothing beyond requirements."""
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.units import inch
+    from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
+                                    Table, TableStyle)
+    styles = getSampleStyleSheet()
+    title = styles["Title"]
+    title.fontSize = 18
+    body = styles["BodyText"]
+    body.fontSize = 10
+    body.leading = 14
+    small = styles["BodyText"]
+    small.fontSize = 8
+    small.leading = 11
+    small.textColor = colors.HexColor("#475569")
+
+    def money(v):
+        return f"${v:,.1f}M" if v is not None else "—"
+
+    def pct(v):
+        return f"{v:.2f}%" if v is not None else "—"
+
+    story = [Paragraph(f"{case.utility.name} — {case.docket}", title),
+             Paragraph("Board brief &middot; " +
+                       STATUS_LABELS.get(case.status, case.status) +
+                       (f" &middot; Filed {case.date_filed}"
+                        if case.date_filed else "") +
+                       (f" &middot; {case.test_year}" if case.test_year else ""),
+                       body),
+             Spacer(1, 0.15 * inch)]
+    pos = _ty1_positions(db, case)
+    period = ((pos.get("as_filed") or pos.get("staff")
+               or pos.get("final_or_stip")) or None)
+    period_label = period.period if period else "Single year"
+    table_data = [["Ask vs outcome (" + period_label + ")", "As filed",
+                   "Staff", "Final / stipulation"]]
+    for label, attr, fmt in (("Revenue change / yr", "revenue_change", money),
+                             ("ROE", "roe", pct),
+                             ("Rate base", "rate_base", money)):
+        table_data.append([label] + [
+            fmt(getattr(pos.get(s), attr, None)) if pos.get(s) else "—"
+            for s in ("as_filed", "staff", "final_or_stip")])
+    t = Table(table_data, colWidths=[2.2 * inch, 1.5 * inch, 1.5 * inch,
+                                     1.5 * inch])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f2a5c")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1),
+         [colors.white, colors.HexColor("#f8fafc")]),
+    ]))
+    story += [t, Spacer(1, 0.2 * inch)]
+    eps = eps_translation(db, case)
+    if any(r["earnings"] is not None for r in eps["rows"]):
+        story.append(Paragraph("EPS translation", styles["Heading2"]))
+        story.append(Paragraph(
+            "Equity earnings = rate base &times; equity share &times; ROE; "
+            "EPS divides by parent shares outstanding. An approximation: it "
+            "assumes the authorized equity return flows to parent EPS.",
+            body))
+        eps_data = [["", "As filed", "Staff", "Final / stipulation"]]
+        eps_data.append(["Equity earnings"] + [
+            money(r["earnings"]) for r in eps["rows"]])
+        eps_data.append(["EPS"] + [
+            (f"${r['eps']:.2f}" if r["eps"] is not None else "—")
+            for r in eps["rows"]])
+        et = Table(eps_data, colWidths=[2.2 * inch, 1.5 * inch, 1.5 * inch,
+                                        1.5 * inch])
+        et.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f2a5c")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1),
+             [colors.white, colors.HexColor("#f8fafc")]),
+        ]))
+        story += [et]
+        if eps["give_earnings"] is not None:
+            story.append(Paragraph(
+                f"Give vs asked: {money(eps['give_earnings'])}" +
+                (f" ({eps['give_eps']:+.2f} per share)"
+                 if eps["give_eps"] is not None else "") + ".", body))
+        story.append(Spacer(1, 0.2 * inch))
+    upcoming = sorted(case.milestones, key=lambda m: m.due_date or "9999")[:3]
+    story.append(Paragraph("What happens next", styles["Heading2"]))
+    if upcoming:
+        for m in upcoming:
+            story.append(Paragraph(f"{m.due_date or 'Date TBD'} — {m.label}",
+                                   body))
+    else:
+        story.append(Paragraph("No dated milestones on file.", body))
+    story.append(Spacer(1, 0.25 * inch))
+    story.append(Paragraph(
+        "Prepared from the Rate Case Workbench. Verify dates and figures "
+        "against PUCO DIS before relying on them.", small))
+    buf = BytesIO()
+    SimpleDocTemplate(buf, pagesize=letter, leftMargin=0.75 * inch,
+                      rightMargin=0.75 * inch, topMargin=0.6 * inch,
+                      bottomMargin=0.6 * inch,
+                      title=f"{case.docket} board brief").build(story)
+    return buf.getvalue()
 
 
 def _fmt_money(v):
@@ -794,8 +1015,22 @@ def regulatory_attention(db):
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request, db: Session = Depends(get_db)):
+    lens = request.query_params.get("lens", "regulatory")
+    if lens not in ("regulatory", "executive"):
+        lens = "regulatory"
+    cards = dashboard_cards(db)
+    exec_money = {}
+    for c in cards:
+        if c["latest"]:
+            pos = _ty1_positions(db, c["latest"])
+            af = pos.get("as_filed")
+            fn = pos.get("final_or_stip")
+            exec_money[c["utility"].id] = {
+                "asked": af.revenue_change if af else None,
+                "final": fn.revenue_change if fn else None}
     return templates.TemplateResponse(request, "dashboard.html", {
-        "request": request, "cards": dashboard_cards(db),
+        "request": request, "cards": cards, "lens": lens,
+        "portfolio": portfolio_totals(db), "exec_money": exec_money,
         "status_labels": STATUS_LABELS, "type_labels": TYPE_LABELS,
         "attention": regulatory_attention(db),
         "deadlines": upcoming_deadlines(db, 5),
@@ -866,6 +1101,9 @@ def case_detail(request: Request, case_id: int, db: Session = Depends(get_db)):
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
         return HTMLResponse("Case not found.", status_code=404)
+    lens = request.query_params.get("lens", "regulatory")
+    if lens not in ("regulatory", "executive"):
+        lens = "regulatory"
     return templates.TemplateResponse(request, "case_detail.html", {
         "request": request, "case": case, "grid": position_grid(db, case),
         "stage_labels": STAGE_LABELS, "status_labels": STATUS_LABELS,
@@ -873,7 +1111,39 @@ def case_detail(request: Request, case_id: int, db: Session = Depends(get_db)):
         "bridge": settlement_bridge(db, case), "kind_labels": KIND_LABELS,
         "dr_type_labels": DR_TYPE_LABELS, "dr_status_labels": DR_STATUS_LABELS,
         "expert_status_labels": EXPERT_STATUS_LABELS,
-        "expert_side_labels": EXPERT_SIDE_LABELS})
+        "expert_side_labels": EXPERT_SIDE_LABELS, "lens": lens,
+        "ty1": _ty1_positions(db, case), "eps": eps_translation(db, case),
+        "sliders": slider_state(db, case, request.query_params),
+        "next_milestones": sorted(
+            case.milestones, key=lambda m: m.due_date or "9999")[:3]})
+
+
+@app.get("/cases/{case_id}/brief.pdf")
+def board_brief(request: Request, case_id: int, db: Session = Depends(get_db)):
+    case = db.query(Case).filter(Case.id == case_id).first()
+    if not case:
+        return HTMLResponse("Case not found.", status_code=404)
+    return Response(content=board_brief_pdf(db, case),
+                    media_type="application/pdf",
+                    headers={"Content-Disposition":
+                             f'inline; filename="{case.docket}-board-brief.pdf"'})
+
+
+@app.post("/utilities/{utility_id}/shares")
+async def utility_shares(request: Request, utility_id: int,
+                         db: Session = Depends(get_db)):
+    u = db.query(Utility).filter(Utility.id == utility_id).first()
+    if not u:
+        return HTMLResponse("Utility not found.", status_code=404)
+    form = await request.form()
+    raw = (form.get("shares_outstanding_m") or "").strip()
+    try:
+        u.shares_outstanding_m = float(raw) if raw else None
+    except ValueError:
+        u.shares_outstanding_m = None
+    u.shares_source = (form.get("shares_source") or "").strip() or None
+    db.commit()
+    return RedirectResponse(f"/utilities/{utility_id}", status_code=303)
 
 
 @app.get("/discovery", response_class=HTMLResponse)

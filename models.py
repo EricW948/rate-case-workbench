@@ -11,6 +11,8 @@ class Utility(Base):
     sector = Column(String(20), default="electric")  # electric | gas | water
     ticker = Column(String(30))  # e.g. "NYSE: AES"
     parent_company = Column(String(200))  # e.g. "NiSource"
+    shares_outstanding_m = Column(Float)  # parent shares, millions — hand-entered from the 10-K, never guessed
+    shares_source = Column(String(200))  # e.g. "AES Corp 10-K 2025"
     notes = Column(Text)  # e.g. ownership changes, former names
 
     service_areas = relationship("ServiceArea", back_populates="utility", cascade="all, delete-orphan")

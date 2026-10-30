@@ -1,4 +1,4 @@
-"""Columbia Gas of Ohio: gas landing page, ticker, rider authorities, new pre-filing case."""
+"""Columbia Gas of Ohio: gas landing page, ticker, rider authorities, formal case 26-0965-GA-AIR."""
 import seed
 
 
@@ -21,19 +21,20 @@ def test_columbia_landing_page(db):
         assert "NYSE: NI" in text
         for tab in ("Pending Cases", "Tariffs", "Riders", "Base Rate Case Build"):
             assert tab in text
-        # new base rate case announcement is present
-        assert "2026-09-18" in text
+        # formal application announcement is present (filed 10/19/2026)
+        assert "2026-10-19" in text
         # rider authority dockets link out to DIS
         assert "CaseRecord.aspx?CaseNo=25-1058-GA-RDR" in text  # IRP rider
         assert "CaseRecord.aspx?CaseNo=25-0621-GA-RDR" in text  # CEP rider
 
-        # pre-filing case has no bogus DIS link; decided case links fine
+        # the pre-filing placeholder is retired; the filed case links out to DIS
         cases = {c.docket: c for c in db.query(Case).filter(Case.utility_id == col.id)}
-        pre = cases["TBD (pre-filing 2026-09-18)"]
-        assert not is_docket(pre.docket)
-        r2 = client.get(f"/cases/{pre.id}")
+        assert "TBD (pre-filing 2026-09-18)" not in cases
+        new = cases["26-0965-GA-AIR"]
+        assert is_docket(new.docket)
+        r2 = client.get(f"/cases/{new.id}")
         assert r2.status_code == 200
-        assert "dis.puc.state.oh.us" not in r2.text  # no DIS button for TBD docket
+        assert "CaseRecord.aspx?CaseNo=26-0965-GA-AIR" in r2.text
         assert "68.05" in r2.text  # proposed 2028 residential base rate in notes
         old = cases["21-0637-GA-AIR"]
         assert is_docket(old.docket)
@@ -63,3 +64,48 @@ def test_is_docket():
     assert not is_docket("TBD (pre-filing 2026-09-18)")
     assert not is_docket("")
     assert not is_docket(None)
+
+
+def test_columbia_startup_gapfill(db):
+    """Production path: the 4cb31ce2 migration created 26-0965-GA-AIR and its
+    three as-filed positions but left test_year, position notes, and the FTY1
+    gross revenue requirement blank. The 2026-10-26 gap-fill in main.startup()
+    must populate them, idempotently, without inventing a rate base."""
+    import main
+    from models import Utility, Case, ThreeWayPosition
+
+    col = Utility(name="Columbia Gas of Ohio", sector="gas")
+    db.add(col)
+    db.flush()
+    c = Case(docket="26-0965-GA-AIR", utility_id=col.id,
+             case_type="historical", status="pending", date_filed="2026-10-19",
+             notes="Formal base rate case application filed 10/19/2026. "
+                   "Companion dockets 26-0966-GA-ATA, 26-0967-GA-UNC, "
+                   "26-0968-GA-AAM.")
+    db.add(c)
+    db.flush()
+    for period, rev, cod in (("TY1 2028", 158.8, 5.18),
+                             ("TY2 2029", 103.2, 5.28),
+                             ("TY3 2030", 89.3, 5.37)):
+        db.add(ThreeWayPosition(
+            case_id=c.id, stage="as_filed", period=period,
+            revenue_change=rev, roe=10.25, equity_ratio=51.50,
+            cost_of_debt=cod,
+            capital_structure="51.50% common equity / 48.50% long-term debt"))
+    db.commit()
+
+    main.startup()
+    main.startup()  # second run must not duplicate or clobber anything
+    db.expire_all()
+
+    c = db.query(Case).filter(Case.docket == "26-0965-GA-AIR").first()
+    assert c.test_year == "FTY1 CY2028; FTY2 CY2029; FTY3 CY2030"
+    pos = {p.period: p for p in
+           db.query(ThreeWayPosition).filter(ThreeWayPosition.case_id == c.id).all()}
+    assert sorted(pos) == ["TY1 2028", "TY2 2029", "TY3 2030"]
+    assert "7.79" in pos["TY1 2028"].notes and "SGS-2" in pos["TY1 2028"].notes
+    assert "24,997,442.98" in pos["TY1 2028"].notes
+    assert pos["TY1 2028"].revenue_requirement == 604.5
+    assert "7.84" in pos["TY2 2029"].notes
+    assert "7.88" in pos["TY3 2030"].notes
+    assert all(p.rate_base is None for p in pos.values())  # never invented

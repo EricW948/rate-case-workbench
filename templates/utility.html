@@ -35,6 +35,16 @@
   </div>
 </div>
 
+<div class="card">
+  <h3>EPS inputs</h3>
+  <p class="muted" style="margin-top:-6px">Parent shares outstanding feed the EPS translation on case pages. Enter from the parent's latest 10-K; leave blank if unknown — nothing is guessed.</p>
+  <form method="post" action="/utilities/{{ utility.id }}/shares" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+    <label class="muted">Parent shares outstanding (millions)<br><input type="number" name="shares_outstanding_m" step="any" value="{{ utility.shares_outstanding_m or '' }}" style="width:160px"></label>
+    <label class="muted">Source<br><input type="text" name="shares_source" value="{{ utility.shares_source or '' }}" placeholder="e.g. AES Corp 10-K 2025" style="width:220px"></label>
+    <button class="btn btn-sec" type="submit">Save</button>
+  </form>
+</div>
+
 <div class="tabgrid">
   <a class="tabbox" href="#pending"><div class="n">{{ pending|length }}</div><div class="t">Pending Cases</div><div class="d">Active dockets</div></a>
   <a class="tabbox" href="#tariffs"><div class="n">{{ tariffs|length }}</div><div class="t">Tariffs</div><div class="d">Base tariff schedules</div></a>

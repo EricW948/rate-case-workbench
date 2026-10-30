@@ -41,6 +41,10 @@ def init_db():
             conn.exec_driver_sql("ALTER TABLE utilities ADD COLUMN parent_company VARCHAR(200)")
         if "notes" not in cols:
             conn.exec_driver_sql("ALTER TABLE utilities ADD COLUMN notes TEXT")
+        if "shares_outstanding_m" not in cols:
+            conn.exec_driver_sql("ALTER TABLE utilities ADD COLUMN shares_outstanding_m FLOAT")
+        if "shares_source" not in cols:
+            conn.exec_driver_sql("ALTER TABLE utilities ADD COLUMN shares_source VARCHAR(200)")
         ccols = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(cases)").fetchall()]
         if "operating_company" not in ccols:
             conn.exec_driver_sql("ALTER TABLE cases ADD COLUMN operating_company VARCHAR(200)")

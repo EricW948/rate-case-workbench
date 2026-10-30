@@ -499,16 +499,19 @@ def seed():
            1953.13, 1934.03, 1960.86),
           ("TY3 2029", 727.56, 26.25, 667.91, 22.27, 0, 0, 679.31, 21.34,
            2092.41, 2055.64, 2083.30)]
+    # Equity cap glide stated in the stipulation, per test year.
+    glide = {"TY1 2027": 53.37, "TY2 2028": 52.00, "TY3 2029": 50.50}
     for (per, f_rr, f_ch, s_rr, s_ch, _s2, _s3, t_rr, t_ch, f_rb, s_rb, t_rb) in ty:
         upsert_position(db, c, "as_filed", period=per, revenue_requirement=f_rr,
                         revenue_change=f_ch, roe=10.10, capital_structure="~52% equity (implied)",
                         rate_base=f_rb,
                         notes="~$94.5M of the 2027 deficiency is ESP rider roll-in, not new money.")
         upsert_position(db, c, "staff", period=per, revenue_requirement=s_rr,
-                        revenue_change=s_ch, roe=9.40, capital_structure="50% equity / 50% debt",
+                        revenue_change=s_ch, roe=9.40, equity_ratio=50.0,
+                        capital_structure="50% equity / 50% debt",
                         rate_base=s_rb, notes="Staff ROE range 9.15-9.66.")
         upsert_position(db, c, "final_or_stip", period=per, revenue_requirement=t_rr,
-                        revenue_change=t_ch, roe=9.50,
+                        revenue_change=t_ch, roe=9.50, equity_ratio=glide[per],
                         capital_structure="Equity cap glide: 53.37 / 52.00 / 50.50",
                         rate_base=t_rb,
                         notes="Stipulation (7/21/2026): ROE 9.50% reset annually before PIMs; "

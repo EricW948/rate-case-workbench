@@ -3,6 +3,38 @@
 {% block content %}
 <h2 style="margin-top:0">At a glance</h2>
 <p class="muted">Each card shows a utility's most recent case and the last return regulators signed off on.</p>
+<p class="muted">View: {% if lens == "executive" %}<a href="/?lens=regulatory">Regulatory</a> | <strong>Executive</strong>{% else %}<strong>Regulatory</strong> | <a href="/?lens=executive">Executive</a>{% endif %}</p>
+{% if lens == "executive" %}
+<div class="card" style="border-left:4px solid #0f2a5c">
+  <h3>Portfolio</h3>
+  <p class="muted" style="margin-top:-6px">{{ portfolio.n }} benchmarked cases — what the portfolio asked for vs what it got.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">
+    <div><span class="big">${{ "%.1f"|format(portfolio.asked) }}M</span><br><span class="muted">Total asked / yr</span></div>
+    <div><span class="big">${{ "%.1f"|format(portfolio.granted) }}M</span><br><span class="muted">Total granted / yr</span></div>
+  </div>
+</div>
+<div class="grid">
+{% for c in cards %}
+  <div class="card">
+    <h3>{% if c.logo %}<img src="/static/logos/{{ c.logo }}" alt="{{ c.utility.name }} logo" style="height:28px;vertical-align:middle;margin-right:8px">{% endif %}<a href="/utilities/{{ c.utility.id }}" style="color:inherit;text-decoration:none">{{ c.utility.name }}</a>{% if c.is_model %} <span class="badge b-model">Model utility</span>{% endif %}</h3>
+    {% if c.latest %}
+      <p><strong>Latest case:</strong> <a href="/cases/{{ c.latest.id }}?lens=executive">{{ c.latest.docket }}</a><br>
+      <span class="badge b-{{ c.latest.case_type }}">{{ type_labels[c.latest.case_type] }}</span>
+      <span class="badge b-{{ c.latest.status }}">{{ status_labels[c.latest.status] }}</span></p>
+      {% set m = exec_money.get(c.utility.id, {}) %}
+      {% if m.asked is not none %}
+      <p><span class="muted">Asked</span><br><strong>+${{ "%.1f"|format(m.asked) }}M / yr</strong>
+      {% if m.final is not none %}<br><span class="muted">Granted</span><br><strong>+${{ "%.1f"|format(m.final) }}M / yr</strong>{% endif %}</p>
+      {% else %}
+      <p class="muted">No as-filed position on file yet.</p>
+      {% endif %}
+    {% else %}
+      <p class="muted">No cases yet.</p>
+    {% endif %}
+  </div>
+{% endfor %}
+</div>
+{% else %}
 <div class="grid">
 {% for c in cards %}
   <div class="card">
@@ -33,6 +65,7 @@
   </div>
 {% endfor %}
 </div>
+{% endif %}
 {% if attention.n_open > 0 or attention.n_experts > 0 %}
 <div class="card" style="border-left:4px solid {% if attention.overdue %}#b91c1c{% elif attention.due_soon or attention.unassigned %}#b45309{% else %}#166534{% endif %}">
   <h3><a href="/discovery" style="color:inherit;text-decoration:none">Regulatory attention</a></h3>

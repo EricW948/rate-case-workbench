@@ -20,6 +20,34 @@
   {% if case.notes %}<p class="muted" style="margin-bottom:0">{{ case.notes }}</p>{% endif %}
 </div>
 
+<p class="muted">View: {% if lens == "executive" %}<a href="/cases/{{ case.id }}">Regulatory</a> | <strong>Executive</strong>{% else %}<strong>Regulatory</strong> | <a href="/cases/{{ case.id }}?lens=executive">Executive</a>{% endif %}</p>
+{% if lens == "executive" %}
+<div class="card">
+  <h3>The bottom line</h3>
+  {% set af = ty1.as_filed %}{% set st = ty1.staff %}{% set fn = ty1.final_or_stip %}
+  {% if af or st or fn %}
+  <p class="muted" style="margin-top:-6px">{{ (af or st or fn).period or "Single year" }} — what was asked, what Staff said, where it landed.</p>
+  <div class="wrap"><table>
+    <tr><th></th><th>As filed</th><th>Staff</th><th>Final / stipulation</th></tr>
+    <tr><td><strong>Revenue change</strong></td>
+      <td>{% if af and af.revenue_change is not none %}{% if af.revenue_change >= 0 %}+{% endif %}${{ "%.1f"|format(af.revenue_change) }}M{% else %}<span class="muted">-</span>{% endif %}</td>
+      <td>{% if st and st.revenue_change is not none %}{% if st.revenue_change >= 0 %}+{% endif %}${{ "%.1f"|format(st.revenue_change) }}M{% else %}<span class="muted">-</span>{% endif %}</td>
+      <td>{% if fn and fn.revenue_change is not none %}{% if fn.revenue_change >= 0 %}+{% endif %}${{ "%.1f"|format(fn.revenue_change) }}M{% else %}<span class="muted">-</span>{% endif %}</td></tr>
+    <tr><td><strong>ROE</strong></td>
+      <td>{% if af and af.roe is not none %}{{ "%.2f"|format(af.roe) }}%{% else %}<span class="muted">-</span>{% endif %}</td>
+      <td>{% if st and st.roe is not none %}{{ "%.2f"|format(st.roe) }}%{% else %}<span class="muted">-</span>{% endif %}</td>
+      <td>{% if fn and fn.roe is not none %}{{ "%.2f"|format(fn.roe) }}%{% else %}<span class="muted">-</span>{% endif %}</td></tr>
+    <tr><td><strong>Rate base</strong></td>
+      <td>{% if af and af.rate_base is not none %}${{ "%.1f"|format(af.rate_base) }}M{% else %}<span class="muted">-</span>{% endif %}</td>
+      <td>{% if st and st.rate_base is not none %}${{ "%.1f"|format(st.rate_base) }}M{% else %}<span class="muted">-</span>{% endif %}</td>
+      <td>{% if fn and fn.rate_base is not none %}${{ "%.1f"|format(fn.rate_base) }}M{% else %}<span class="muted">-</span>{% endif %}</td></tr>
+  </table></div>
+  {% else %}
+  <p class="muted">No as-filed position on file for this case yet.</p>
+  {% endif %}
+  <p style="margin:10px 0 0"><a href="/cases/{{ case.id }}/brief.pdf" class="btn btn-sec" style="padding:6px 14px;font-size:13px">Download board brief (PDF)</a></p>
+</div>
+{% else %}
 <h3>As-filed vs. Staff vs. final</h3>
 <p class="muted">What the utility asked for, what PUCO Staff recommended, and where it landed. Money is in millions of dollars per year.</p>
 {% for period, cols in grid.items() %}
@@ -47,6 +75,7 @@
   {% endfor %}
 </div>
 {% endfor %}
+{% endif %}
 
 {% if bridge %}
 <h3>Settlement bridge</h3>
@@ -66,6 +95,79 @@
 {% endfor %}
 {% endif %}
 
+{% if lens == "executive" %}
+<div class="card">
+  <h3>EPS translation</h3>
+  <p class="muted" style="margin-top:-6px">Equity earnings = rate base &times; equity share &times; ROE; EPS divides by parent shares outstanding. An approximation: it assumes the authorized equity return flows to parent EPS.</p>
+  {% if eps.rows[0].earnings is not none or eps.rows[1].earnings is not none or eps.rows[2].earnings is not none %}
+  <div class="wrap"><table>
+    <tr><th></th><th>As filed</th><th>Staff</th><th>Final / stipulation</th></tr>
+    <tr><td><strong>Equity earnings</strong></td>
+      {% for r in eps.rows %}<td>{% if r.earnings is not none %}${{ "%.1f"|format(r.earnings) }}M{% else %}<span class="muted">-</span>{% endif %}</td>{% endfor %}</tr>
+    <tr><td><strong>EPS</strong></td>
+      {% for r in eps.rows %}<td>{% if r.eps is not none %}${{ "%.2f"|format(r.eps) }}{% else %}<span class="muted">-</span>{% endif %}</td>{% endfor %}</tr>
+    {% if eps.give_earnings is not none %}
+    <tr><td><strong>Give (final &minus; asked)</strong></td><td colspan="3">{% if eps.give_earnings >= 0 %}+{% endif %}${{ "%.1f"|format(eps.give_earnings) }}M{% if eps.give_eps is not none %} ({% if eps.give_eps >= 0 %}+{% endif %}${{ "%.2f"|format(eps.give_eps) }} per share){% endif %}</td></tr>
+    {% endif %}
+  </table></div>
+  {% else %}
+  <p class="muted">No stage has rate base, equity ratio, and ROE all on file, so no EPS translation is possible yet.</p>
+  {% endif %}
+  {% if not eps.shares %}
+  <p class="muted">Enter parent shares outstanding on the <a href="/utilities/{{ case.utility.id }}">utility page</a> to see EPS.</p>
+  {% else %}
+  <p class="muted">Parent shares: {{ eps.shares }}M{% if case.utility.shares_source %} ({{ case.utility.shares_source }}){% endif %}.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>Scenario sliders</h3>
+  {% if sliders %}
+  <form method="get" action="/cases/{{ case.id }}" style="display:flex;gap:16px;flex-wrap:wrap;align-items:end">
+    <input type="hidden" name="lens" value="executive">
+    <label class="muted">ROE<br><input type="range" name="roe" min="5" max="15" step="0.05" value="{{ sliders.roe }}"> {{ "%.2f"|format(sliders.roe) }}%</label>
+    <label class="muted">Equity ratio<br><input type="range" name="equity" min="30" max="70" step="0.5" value="{{ sliders.equity }}"> {{ "%.1f"|format(sliders.equity) }}%</label>
+    <label class="muted">Rate base<br><input type="range" name="rb_pct" min="50" max="150" step="1" value="{{ sliders.rb_pct }}"> {{ "%.0f"|format(sliders.rb_pct) }}% (${{ "%.1f"|format(sliders.rate_base) }}M)</label>
+    {% if sliders.cod is not none %}<label class="muted">Cost of debt<br><input type="range" name="cod" min="2" max="8" step="0.05" value="{{ sliders.cod }}"> {{ "%.2f"|format(sliders.cod) }}%</label>{% endif %}
+    <button class="btn btn-sec" type="submit">Update</button>
+  </form>
+  <div class="wrap" style="margin-top:10px"><table>
+    <tr><th>Equity earnings</th><td><strong>${{ "%.1f"|format(sliders.earnings) }}M</strong> <span class="muted">(as-filed ${{ "%.1f"|format(sliders.base_earnings) }}M; {% if sliders.delta_earnings >= 0 %}+{% endif %}${{ "%.1f"|format(sliders.delta_earnings) }}M){% if sliders.eps is not none %} — ${{ "%.2f"|format(sliders.eps) }} per share{% endif %}</span></td></tr>
+    {% if sliders.rr is not none %}
+    <tr><th>Revenue requirement</th><td><strong>${{ "%.1f"|format(sliders.rr) }}M</strong>{% if sliders.base_rr is not none %} <span class="muted">(as-filed ${{ "%.1f"|format(sliders.base_rr) }}M{% if sliders.delta_rr is not none %}; {% if sliders.delta_rr >= 0 %}+{% endif %}${{ "%.1f"|format(sliders.delta_rr) }}M{% endif %})</span>{% endif %}</td></tr>
+    <tr><th>Overall return</th><td>{{ "%.2f"|format(sliders.ror_pct) }}%</td></tr>
+    {% endif %}
+  </table></div>
+  <p class="muted" style="margin-bottom:0">Move a slider, hit Update. Revenue requirement and overall return appear when cost of debt is on file; the earnings math runs through the same engine as the scenario workbench.</p>
+  {% else %}
+  <p class="muted" style="margin-bottom:0">The as-filed build (rate base, ROE, equity ratio) isn't on file for this case, so there is nothing to slide yet. Build it in the <a href="/cases/{{ case.id }}/scenarios">scenario workbench</a>.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>What happens next</h3>
+  {% if next_milestones %}
+  <div class="wrap"><table>
+    <tr><th>Date</th><th>What</th><th>Type</th></tr>
+    {% for m in next_milestones %}
+    <tr><td>{{ m.due_date or "—" }}</td><td><strong>{{ m.label }}</strong></td><td>{{ kind_labels[m.kind] }}</td></tr>
+    {% endfor %}
+  </table></div>
+  {% else %}
+  <p class="muted" style="margin-bottom:0">No dated milestones on file.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>Go deeper</h3>
+  <p style="margin:10px 0 0;display:flex;gap:8px;flex-wrap:wrap">
+    <a href="/cases/{{ case.id }}/exec" class="btn btn-sec" style="padding:6px 14px;font-size:13px">Executive insights</a>
+    <a href="/cases/{{ case.id }}/scenarios" class="btn btn-sec" style="padding:6px 14px;font-size:13px">Scenario workbench</a>
+    <a href="/cases/{{ case.id }}/coss" class="btn btn-sec" style="padding:6px 14px;font-size:13px">Cost of service</a>
+    <a href="/cases/{{ case.id }}/bills" class="btn btn-sec" style="padding:6px 14px;font-size:13px">Bill impacts</a>
+  </p>
+</div>
+{% else %}
 {% if case.milestones %}
 <div class="card">
   <h3>Dates on the calendar</h3>
@@ -147,4 +249,5 @@
     <a href="/cases/{{ case.id }}/bills" class="btn btn-sec" style="padding:6px 14px;font-size:13px">Bill impacts</a>
   </p>
 </div>
+{% endif %}
 {% endblock %}
