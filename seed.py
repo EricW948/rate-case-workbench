@@ -158,6 +158,193 @@ GAS_POSITIONS = [
               "53.14%. Staff Report due 1/11/2027; hearing 3/30/2027. ")),
 ]
 
+# Full 8-utility open-docket sweep (2026-11-02, PUCO DIS inventory):
+# Tier 2 milestones-only records, same pattern as the pilot. Dates below
+# are DIS "open dates", NOT filing dates — Case.date_filed stays blank,
+# never inferred. No upcoming hearing/testimony/comment dates were stated
+# in DIS for these dockets as of the inventory, except where a note says
+# otherwise. Scope per Eric's 11/2/2026 call: live proceedings only, plus
+# the 14 individual AEC reasonable arrangements; routine annual RDR
+# true-ups and one-off ATA tariff sheets excluded; decided cases that DIS
+# still shows "open" excluded (they already live as Tier 1 builds). SSO
+# live-status verification 11/2/2026: only Duke 24-0278 verified live;
+# AEP 23-0023, AES 22-0900, FE 25-0092, FE 23-0301 are decided-but-unclosed
+# and excluded.
+# (docket, utility name, notes)
+SWEEP_TIER2 = [
+    ("26-0501-EL-FOR", "AEP Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "AEP Ohio long-term forecast report. DIS open date 01/02/2026."),
+    ("25-1039-EL-ATR", "AEP Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Transfer of Ohio Valley Electric Corporation (OVEC) interests to an "
+     "affiliate. DIS open date 11/03/2025. Approved by Finding & Order "
+     "12/17/2025; notice of transfer filed 06/02/2026."),
+    ("25-0110-EL-RDR", "AEP Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Review of the Distribution Investment Rider. "
+     "DIS open date 03/11/2025."),
+    ("23-1017-EL-UNC", "AEP Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Commission review of the Phase 3 GridSMART project. "
+     "DIS open date 11/01/2023."),
+    ("26-0612-EL-UNC", "AEP Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Significantly Excessive Earnings Test (SEET) for 2025. "
+     "DIS open date 05/15/2026."),
+    ("25-0550-EL-UNC", "AEP Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Significantly Excessive Earnings Test (SEET) for 2024. "
+     "DIS open date 05/14/2025."),
+    ("24-0364-EL-UNC", "AEP Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "PIPP generation procurement. DIS open date 04/11/2024."),
+    ("26-1024-EL-RDR", "AES Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Recovery of storm-related service restoration costs. "
+     "DIS open date 10/01/2026."),
+    ("25-0900-EL-RDR", "AES Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Storm-related cost recovery. DIS open date 10/01/2025."),
+    ("26-0541-EL-RDR", "AES Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Review of the Alternative Energy Rider. DIS open date 05/22/2026."),
+    ("26-0961-EL-UNC", "AES Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Settlement agreement proceeding; settlement agreement filed "
+     "09/21/2026, OCC motion to intervene 10/01/2026. "
+     "DIS open date 09/21/2026."),
+    ("26-0033-GA-UNC", "CenterPoint Energy Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Notice of transaction involving Vectren Energy Delivery of Ohio "
+     "d/b/a CenterPoint Energy Ohio. DIS open date 01/09/2026."),
+    ("23-1020-GA-RDR", "CenterPoint Energy Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Tax Savings Credit Rider adjustment. DIS open date 09/29/2023."),
+    ("24-0820-GA-RDR", "CenterPoint Energy Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Energy Efficiency Funding Rider. DIS open date 07/01/2024."),
+    ("26-0121-GA-UNC", "Columbia Gas of Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Natural gas supply procurement for the Standard Choice Offer. "
+     "DIS open date 01/02/2026."),
+    ("23-0503-EL-FOR", "Duke Energy Ohio (Electric)",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Long-term forecast and resource plan. DIS open date 01/03/2023."),
+    ("25-0154-EL-RDR", "Duke Energy Ohio (Electric)",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Power Future Initiatives Rider. DIS open date 03/31/2025."),
+    ("24-0637-EL-RDR", "Duke Energy Ohio (Electric)",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Annual review of the Distribution Capital Investment Rider. "
+     "DIS open date 07/05/2024."),
+    ("26-0118-GA-UNC", "Duke Energy Ohio (Gas)",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Natural gas supply procurement for SSO customers. "
+     "DIS open date 01/02/2026."),
+    ("26-0029-GA-UNC", "Duke Energy Ohio (Gas)",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Implementation of the Tax Cuts and Jobs Act of 2017. "
+     "DIS open date 01/30/2026."),
+    ("25-0139-GA-UNC", "Duke Energy Ohio (Gas)",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Alternate supplier for PIPP customers. DIS open date 02/14/2025."),
+    ("26-0119-GA-UNC", "Enbridge Gas Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Natural gas supply procurement for SSO and SCO customers. "
+     "DIS open date 01/02/2026."),
+    ("26-0504-EL-FOR", "FirstEnergy",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Long-term forecast report (joint Ohio Edison / CEI / Toledo "
+     "Edison). DIS open date 01/02/2026."),
+    ("26-0798-EL-UNC", "FirstEnergy",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Prudency review of deferred storm restoration costs; auditor Aadi "
+     "Advisory LLC selected 09/17/2026. DIS open date 07/29/2026."),
+    ("25-0240-EL-UNC", "FirstEnergy",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Quadrennial review of ESP III. DIS open date 03/14/2025."),
+    ("23-0893-EL-RDR", "FirstEnergy",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "2023 review of the Delivery Capital Recovery Rider. DIS open date "
+     "not stated in the 11/2/2026 inventory."),
+    ("22-0892-EL-RDR", "FirstEnergy",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "2022 review of the Delivery Capital Recovery Rider. DIS open date "
+     "not stated in the 11/2/2026 inventory."),
+    ("26-0706-EL-AEC", "AEP Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Reasonable arrangement with Belden Brick. "
+     "DIS open date 06/16/2026."),
+    ("25-1096-EL-AEC", "AEP Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Reasonable arrangement case; customer not named in the 11/2/2026 "
+     "DIS inventory. DIS open date 11/24/2025."),
+    ("25-0134-EL-AEC", "AEP Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Reasonable arrangement case; customer not named in the 11/2/2026 "
+     "DIS inventory. DIS open date 02/12/2025."),
+    ("25-0133-EL-AEC", "AEP Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Reasonable arrangement case; customer not named in the 11/2/2026 "
+     "DIS inventory. DIS open date 02/12/2025."),
+    ("24-0734-EL-AEC", "AEP Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Reasonable arrangement case; customer not named in the 11/2/2026 "
+     "DIS inventory. DIS open date 07/19/2024."),
+    ("24-0383-EL-AEC", "AEP Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Reasonable arrangement with 500 N 4th Street LLC d/b/a Standard "
+     "Power. DIS open date 04/12/2024."),
+    ("24-0025-EL-AEC", "AEP Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Reasonable arrangement with JSW Steel USA Ohio. "
+     "DIS open date 01/10/2024."),
+    ("23-0948-EL-AEC", "AEP Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Reasonable arrangement with SAI US. DIS open date 10/13/2023."),
+    ("23-0891-EL-AEC", "AEP Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Reasonable arrangement with New Albany Data Center, LLC. "
+     "DIS open date 09/28/2023."),
+    ("23-0866-EL-AEC", "AEP Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Reasonable arrangement with Crown56, LLC. "
+     "DIS open date 09/13/2023."),
+    ("23-0858-EL-AEC", "AEP Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Reasonable arrangement with Amazon Data Services, Inc. "
+     "DIS open date 11/14/2023."),
+    ("26-0748-EL-AEC", "Duke Energy Ohio (Electric)",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Economic development / reasonable arrangement case; customer not "
+     "named in the 11/2/2026 DIS inventory. DIS open date 07/08/2026."),
+    ("26-0680-EL-AEC", "Duke Energy Ohio (Electric)",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Economic development / reasonable arrangement case with the "
+     "University of Cincinnati. DIS open date 06/22/2026."),
+    ("24-0146-EL-AEC", "FirstEnergy",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Reasonable arrangement with Viking Data Center and Ohio Edison "
+     "Company. DIS open date 02/21/2024."),
+    ("24-0278-EL-SSO", "Duke Energy Ohio (Electric)",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Standard service offer case; Opinion & Order 05/14/2025 adopted "
+     "the stipulation, with ongoing 2026 implementation filings (SCR "
+     "tariff sheets, hosting-capacity map notice, stakeholder session). "
+     "DIS open date 03/25/2024. Verified LIVE 11/2/2026 — the only one "
+     "of five checked SSOs still substantively active."),
+    ("26-1014-GA-UNC", "Columbia Gas of Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Application to change the carrying charge calculation for Rider "
+     "DSM (demand side management rider). DIS open date 09/25/2026."),
+    ("26-0579-GA-UNC", "Columbia Gas of Ohio",
+     "Tier 2 docket record — milestones only, no rate-case build. "
+     "Annual report of pipeline safety program deferred expenses, filed "
+     "05/29/2026; Staff Review and Recommendation 08/27/2026. "
+     "DIS open date 05/29/2026."),
+]
+
 
 def get_or_create_case(db, docket, utility, **kw):
     c = db.query(Case).filter(Case.docket == docket).first()
@@ -1121,6 +1308,15 @@ def seed():
               "(Marcelletti) granted expedited continuance. "
               "Next milestones: intervenor testimony 12/14/2026; discovery "
               "cutoff 12/28/2026; Staff testimony 1/5/2027; hearing 1/12/2027.")
+
+    # Full 8-utility open-docket sweep (2026-11-02): same Tier 2 pattern,
+    # driven by the SWEEP_TIER2 constant so main.py's startup migration
+    # shares it (no duplicated notes to drift).
+    for docket, util_name, notes in SWEEP_TIER2:
+        u = db.query(Utility).filter(Utility.name == util_name).first()
+        if u:
+            get_or_create_case(db, docket, u, case_type="other",
+                               status="pending", notes=notes)
 
     # Phase 1 milestones (2026-10-29): dated obligations on open cases.
     for docket, label, due, kind, notes in PHASE1_MILESTONES:

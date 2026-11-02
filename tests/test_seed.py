@@ -19,8 +19,8 @@ def test_seed_is_idempotent(db):
     seed.seed()
     first = counts(db)
     assert first["utilities"] == 8
-    # 18 rate cases + 3 Tier 2 open-docket records (AES SSO, Duke DC, AES forecast)
-    assert first["cases"] == 21
+    # 18 rate cases + 47 Tier 2 open-docket records (3 pilot + 44 sweep)
+    assert first["cases"] == 65
     assert first["positions"] == 58, first  # was 41 (stale) before the gas extraction added 14
     assert first["riders"] == 157, first
     assert first["documents"] == 10, first

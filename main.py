@@ -225,6 +225,14 @@ def startup():
                 if u and not db.query(Case).filter(Case.docket == docket).first():
                     db.add(Case(docket=docket, utility_id=u.id,
                                 case_type="other", status="pending", notes=notes))
+            # Full 8-utility open-docket sweep (2026-11-02): shared with
+            # seed.py so existing production DBs pick the sweep up on
+            # startup. Create-if-missing, same as the pilot above.
+            for docket, util_name, notes in seed_module.SWEEP_TIER2:
+                u = db.query(Utility).filter(Utility.name == util_name).first()
+                if u and not db.query(Case).filter(Case.docket == docket).first():
+                    db.add(Case(docket=docket, utility_id=u.id,
+                                case_type="other", status="pending", notes=notes))
             # Phase 1 deadline machine (2026-10-29): structured milestones for
             # open cases, shared with seed.py so existing production DBs get
             # the same calendar. Create-if-missing, same as Tier 2 above.
