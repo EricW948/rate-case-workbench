@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Countdown - Rate Case Workbench{% endblock %}
+{% block content %}
+<h2 style="margin-top:0">Next-filing countdown</h2>
+<p class="muted">Each utility's next dated step and how many days out it sits, nearest first — built on the deadline calendar. Dates come from tracked dockets; verify against PUCO DIS before filing around them. A utility with no dated next step shows as undated, never as a guessed date.</p>
+
+<div class="card">
+  <h3>As of {{ today }}</h3>
+  <div class="wrap"><table>
+    <tr><th>Utility</th><th>Countdown</th><th>Next step</th><th>Case</th><th>Type</th><th>Also on file</th></tr>
+    {% for r in rows %}
+    <tr>
+      <td><a href="/utilities/{{ r.utility_id }}">{{ r.utility }}</a></td>
+      <td><strong>{{ r.days_label }}</strong></td>
+      {% if r.next %}
+      <td><strong>{{ r.next.label }}</strong><br><span class="muted">{{ r.next.date }}</span>{% if r.next.notes %}<br><span class="muted">{{ r.next.notes }}</span>{% endif %}</td>
+      <td><a href="/cases/{{ r.next.case_id }}">{{ r.next.docket }}</a></td>
+      <td>{{ kind_labels[r.next.kind] }}</td>
+      {% else %}
+      <td colspan="3"><span class="muted">No dated next step on file.</span></td>
+      {% endif %}
+      <td>{% if r.upcoming_count %}{{ r.upcoming_count }} upcoming{% endif %}{% if r.overdue_count %}{% if r.upcoming_count %}, {% endif %}<span style="color:#b91c1c">{{ r.overdue_count }} overdue</span>{% endif %}{% if not r.upcoming_count and not r.overdue_count %}<span class="muted">—</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+</div>
+{% endblock %}

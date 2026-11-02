@@ -11,7 +11,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import database
 from database import init_db
-from models import Utility, ServiceArea, Case, ThreeWayPosition, TariffRider, Document, EarnedROE, DiscoveryRequest, ExpertWitness, Milestone
+from models import Utility, ServiceArea, Case, ThreeWayPosition, TariffRider, Document, EarnedROE, DiscoveryRequest, ExpertWitness, Milestone, IntervenorPosition
 
 
 # Stock tickers for the dashboard/landing pages (display only).
@@ -52,6 +52,24 @@ def get_or_create_utility(db, name, sector="electric"):
     if parent and u.parent_company != parent:
         u.parent_company = parent
     return u
+
+
+def ensure_intervenor_position(db, case, intervenor, issue, summary,
+                               value_text=None, source_doc=None,
+                               source_date=None, notes=None):
+    """Create-if-missing by case + intervenor + issue, so re-running seed
+    (or the startup migration) never duplicates a position."""
+    p = db.query(IntervenorPosition).filter(
+        IntervenorPosition.case_id == case.id,
+        IntervenorPosition.intervenor == intervenor,
+        IntervenorPosition.issue == issue).first()
+    if not p:
+        db.add(IntervenorPosition(case_id=case.id, intervenor=intervenor,
+                                  issue=issue, summary=summary,
+                                  value_text=value_text, source_doc=source_doc,
+                                  source_date=source_date, notes=notes))
+        db.flush()
+    return p
 
 
 def ensure_milestone(db, case, label, due_date, kind="deadline", notes=None):
@@ -343,6 +361,182 @@ SWEEP_TIER2 = [
      "Annual report of pipeline safety program deferred expenses, filed "
      "05/29/2026; Staff Review and Recommendation 08/27/2026. "
      "DIS open date 05/29/2026."),
+]
+
+
+# Phase 3 intervenor positions (2026-11-02 DIS extraction): verified rows
+# only — (docket, intervenor, issue, summary, value_text, source_doc,
+# source_date, notes). Deliberately NOT seeded: OEG's Duke objection
+# (large-load tariff language only, outside the taxonomy); RESA's Duke
+# objections (content not extracted); OCC/NOPEC Enbridge opposition
+# values (testimony located 9/25/2026, values not extracted); AES
+# pre-settlement testimony (6/18/2026, not extracted). Columbia 26-0965,
+# FirstEnergy 26-0347, and Duke Gas 26-0635 have no intervenor positions
+# on file yet and stay in the extraction queue.
+INTERVENOR_POSITIONS = [
+    # ---- AES Ohio 25-0958-EL-AIR: all brief-filing intervenors support
+    # the stipulation, so one row per issue carries the stipulation terms.
+    ("25-0958-EL-AIR",
+     "Stipulation signatories (OCC, OMAEG, OEG, OELC, Kroger, City of "
+     "Dayton, Walmart, OPAE, OEC, ELPC, CUB Ohio)",
+     "roe", "Support the stipulation: ROE 9.50% in all three test years.",
+     "9.50% ROE",
+     "Stipulation and Recommendation (7/21/2026); initial briefs in "
+     "support (8/21/2026)", "2026-08-21",
+     "Signatory parties per OMAEG Initial Post-Hearing Brief; RESA, IGS, "
+     "Constellation, NOPEC, NEP non-opposing. Pre-settlement intervenor "
+     "testimony/objections filed 6/18/2026 not extracted here."),
+    ("25-0958-EL-AIR",
+     "Stipulation signatories (OCC, OMAEG, OEG, OELC, Kroger, City of "
+     "Dayton, Walmart, OPAE, OEC, ELPC, CUB Ohio)",
+     "equity_ratio", "Support the stipulation: equity glide 53.37% (2027), "
+     "52.00% (2028), 50.50% (2029).", "53.37% / 52.00% / 50.50% equity",
+     "Stipulation and Recommendation (7/21/2026); initial briefs in "
+     "support (8/21/2026)", "2026-08-21", None),
+    ("25-0958-EL-AIR",
+     "Stipulation signatories (OCC, OMAEG, OEG, OELC, Kroger, City of "
+     "Dayton, Walmart, OPAE, OEC, ELPC, CUB Ohio)",
+     "rate_base", "Support the stipulation: rate base $1,801,831,762 "
+     "(2027), $1,960,860,762 (2028), $2,083,297,091 (2029).",
+     "$1,801.8M / $1,960.9M / $2,083.3M",
+     "Stipulation and Recommendation (7/21/2026); initial briefs in "
+     "support (8/21/2026)", "2026-08-21", None),
+    ("25-0958-EL-AIR",
+     "Stipulation signatories (OCC, OMAEG, OEG, OELC, Kroger, City of "
+     "Dayton, Walmart, OPAE, OEC, ELPC, CUB Ohio)",
+     "cost_of_debt", "Support the stipulation: long-term debt cost 4.79% "
+     "(2027), 4.98% (2028), 5.08% (2029).", "4.79% / 4.98% / 5.08%",
+     "Stipulation and Recommendation (7/21/2026); initial briefs in "
+     "support (8/21/2026)", "2026-08-21", None),
+    ("25-0958-EL-AIR",
+     "Stipulation signatories (OCC, OMAEG, OEG, OELC, Kroger, City of "
+     "Dayton, Walmart, OPAE, OEC, ELPC, CUB Ohio)",
+     "rider_disposition", "Support the stipulation: DIR, IIR, PRO, "
+     "Customer Programs, SCRR, RCR, and Energy Efficiency riders all set "
+     "to zero effective 1/1/2027 (rolled into base rates).",
+     "7 riders rolled into base rates 1/1/2027",
+     "Stipulation and Recommendation (7/21/2026); initial briefs in "
+     "support (8/21/2026)", "2026-08-21", None),
+    ("25-0958-EL-AIR",
+     "Stipulation signatories (OCC, OMAEG, OEG, OELC, Kroger, City of "
+     "Dayton, Walmart, OPAE, OEC, ELPC, CUB Ohio)",
+     "test_period", "Support the stipulation: three prospective test "
+     "years 2027, 2028, 2029.", "TYs 2027/2028/2029",
+     "Stipulation and Recommendation (7/21/2026); initial briefs in "
+     "support (8/21/2026)", "2026-08-21", None),
+    ("25-0958-EL-AIR",
+     "Stipulation signatories (OCC, OMAEG, OEG, OELC, Kroger, City of "
+     "Dayton, Walmart, OPAE, OEC, ELPC, CUB Ohio)",
+     "cost_allocation", "Support the stipulation: cost allocation per "
+     "Staff Report class allocations; $12.00 residential customer "
+     "charge.", "$12.00 residential customer charge",
+     "Stipulation and Recommendation (7/21/2026); initial briefs in "
+     "support (8/21/2026)", "2026-08-21", None),
+    # ---- Duke Energy Ohio (Electric) 26-0132-EL-AIR: objections filed
+    # 10/21/2026; no briefs yet.
+    ("26-0132-EL-AIR", "OCC", "roe",
+     "Proposes ROE 9.30% (range 9.05%–9.55%), vs Staff range "
+     "9.34%–9.85%; exclude issuance costs from ROE; ROR no more than "
+     "7.00% (vs Staff 7.21%).", "9.30% ROE (9.05%–9.55%)",
+     "Objections to Staff Report", "2026-10-21", None),
+    ("26-0132-EL-AIR", "OCC", "equity_ratio",
+     "Proposes equity ratio 50% or less, vs Staff 51.45%.",
+     "50% or less equity", "Objections to Staff Report", "2026-10-21",
+     None),
+    ("26-0132-EL-AIR", "OCC", "cost_allocation",
+     "Opposes Staff revenue apportionment as unjust to residential; "
+     "evaluate classifying distribution plant as 100% demand-related "
+     "(vs Staff minimum-system); opposes $10 residential customer "
+     "charge.", None, "Objections to Staff Report", "2026-10-21", None),
+    ("26-0132-EL-AIR", "Kroger", "roe",
+     "ROE at the lower end of the Staff range (9.34%) or lower; ROR at "
+     "the lower end (7.08%) or lower.", "9.34% ROE or lower",
+     "Objections to Staff Report", "2026-10-21", None),
+    ("26-0132-EL-AIR", "Kroger", "rate_base",
+     "Remove capitalized incentives ($2.72M) and prepaid pension asset "
+     "($5.41M) from rate base.", "Exclude $2.72M + $5.41M",
+     "Objections to Staff Report", "2026-10-21", None),
+    ("26-0132-EL-AIR", "Kroger", "rider_disposition",
+     "Eliminate Rider DCI or meaningfully lower its caps (Duke proposed "
+     "$30M/$26M caps).", "Eliminate or lower Rider DCI caps",
+     "Objections to Staff Report", "2026-10-21", None),
+    ("26-0132-EL-AIR", "Kroger", "cost_allocation",
+     "Supports minimum-system cost classification (cost causation); "
+     "opposes rate allocations raising Primary/Secondary charges.",
+     None, "Objections to Staff Report", "2026-10-21", None),
+    ("26-0132-EL-AIR", "OMAEG", "roe",
+     "Revenue requirement and ROR excessive; no specific ROE value "
+     "stated in objections.", None, "Objections to Staff Report",
+     "2026-10-21", None),
+    ("26-0132-EL-AIR", "OMAEG", "rider_disposition",
+     "Opposes Rider DCI cap increases.", None,
+     "Objections to Staff Report", "2026-10-21", None),
+    ("26-0132-EL-AIR", "Walmart", "roe",
+     "Objects to Staff ROE including an 8bp issuance-cost adder.",
+     "No 8bp issuance-cost adder", "Objection to Staff Report",
+     "2026-10-21", None),
+    ("26-0132-EL-AIR", "University of Cincinnati", "roe",
+     "Staff ROE range excessive; no specific value stated.", None,
+     "Objections to Staff Report", "2026-10-21",
+     "Also seeks rejection of Duke's 40 MW+ large-load tariff revisions, "
+     "transmission charges aligned with costs, and interruptible rates."),
+    ("26-0132-EL-AIR", "City of Cincinnati", "cost_allocation",
+     "Revenue requirement too high; affordability; opposes increases "
+     "for Rate RS, RSLI, DS, and DP.", None,
+     "Objections to Staff Report", "2026-10-21", None),
+    ("26-0132-EL-AIR", "OELC", "roe",
+     "Staff ROE range 9.34%–9.85% excessively high; wants lower ROE; "
+     "opposes issuance-cost adjustment.", "Below 9.34%–9.85% range",
+     "Objections to Staff Report", "2026-10-21",
+     "Also objects on digital-payment fees, storm expense, 40 MW "
+     "requirements, and interruptible tariff."),
+    # ---- Enbridge Gas Ohio 25-1097-GA-AIR: contested stipulation; the
+    # signatory intervenors' positions are the stipulation terms.
+    ("25-1097-GA-AIR",
+     "Stipulation signatories (OEG, OELC, RESA, IGS, Gas Workers Union "
+     "Local G-555)",
+     "roe", "Support the stipulation: ROE 9.59%.", "9.59% ROE",
+     "Stipulation and Recommendation", "2026-09-15",
+     "Contested stipulation; OCC and NOPEC oppose — their opposition "
+     "testimony (9/25/2026) values not yet extracted."),
+    ("25-1097-GA-AIR",
+     "Stipulation signatories (OEG, OELC, RESA, IGS, Gas Workers Union "
+     "Local G-555)",
+     "cost_of_debt", "Support the stipulation: long-term debt cost "
+     "4.39%.", "4.39%",
+     "Stipulation and Recommendation", "2026-09-15", None),
+    ("25-1097-GA-AIR",
+     "Stipulation signatories (OEG, OELC, RESA, IGS, Gas Workers Union "
+     "Local G-555)",
+     "equity_ratio", "Support the stipulation: capital structure "
+     "52.87% equity / 47.13% debt; ROR 7.14%.", "52.87% equity",
+     "Stipulation and Recommendation", "2026-09-15", None),
+    ("25-1097-GA-AIR",
+     "Stipulation signatories (OEG, OELC, RESA, IGS, Gas Workers Union "
+     "Local G-555)",
+     "rate_base", "Support the stipulation: rate base $5,102,302,261 "
+     "(June 30, 2026 date certain).", "$5,102.3M",
+     "Stipulation and Recommendation", "2026-09-15", None),
+    ("25-1097-GA-AIR",
+     "Stipulation signatories (OEG, OELC, RESA, IGS, Gas Workers Union "
+     "Local G-555)",
+     "rider_disposition", "Support the stipulation: PSMP deferral "
+     "balances amortized over 30 years (up from 10).",
+     "PSMP deferral over 30 years",
+     "Stipulation and Recommendation", "2026-09-15", None),
+    ("25-1097-GA-AIR",
+     "Stipulation signatories (OEG, OELC, RESA, IGS, Gas Workers Union "
+     "Local G-555)",
+     "test_period", "Support the stipulation: test period ending "
+     "6/30/2026; revenue requirement $1,094,417,287 (deficiency "
+     "$144,562,071).", "Test year ending 6/30/2026",
+     "Stipulation and Recommendation", "2026-09-15", None),
+    ("25-1097-GA-AIR",
+     "Stipulation signatories (OEG, OELC, RESA, IGS, Gas Workers Union "
+     "Local G-555)",
+     "cost_allocation", "Support the stipulation: cost allocation per "
+     "Staff Report (Joint Exhibit 3.0).", None,
+     "Stipulation and Recommendation", "2026-09-15", None),
 ]
 
 
@@ -1317,6 +1511,15 @@ def seed():
         if u:
             get_or_create_case(db, docket, u, case_type="other",
                                status="pending", notes=notes)
+
+    # Phase 3 intervenor positions (2026-11-02 DIS extraction): verified
+    # rows only, shared with main.py's startup migration.
+    for row in INTERVENOR_POSITIONS:
+        docket, intervenor, issue, summary, value, doc, sdate, notes = row
+        c = db.query(Case).filter(Case.docket == docket).first()
+        if c:
+            ensure_intervenor_position(db, c, intervenor, issue, summary,
+                                       value, doc, sdate, notes)
 
     # Phase 1 milestones (2026-10-29): dated obligations on open cases.
     for docket, label, due, kind, notes in PHASE1_MILESTONES:

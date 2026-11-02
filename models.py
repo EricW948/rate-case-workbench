@@ -68,6 +68,8 @@ class Case(Base):
     experts = relationship("ExpertWitness", back_populates="case", cascade="all, delete-orphan")
     scenarios = relationship("Scenario", back_populates="case", cascade="all, delete-orphan")
     milestones = relationship("Milestone", back_populates="case", cascade="all, delete-orphan")
+    intervenor_positions = relationship("IntervenorPosition", back_populates="case",
+                                         cascade="all, delete-orphan")
     customer_classes = relationship("CustomerClass", back_populates="case",
                                     cascade="all, delete-orphan")
 
@@ -124,6 +126,25 @@ class Milestone(Base):
     kind = Column(String(20), default="deadline")
     notes = Column(Text)
     case = relationship("Case", back_populates="milestones")
+
+
+class IntervenorPosition(Base):
+    """One intervenor's stated position on one issue in one case, sourced
+    from its filed testimony or brief. Positions are tracked facts from
+    DIS filings, never inferred — a case with no intervenor filings yet
+    simply has no rows. `issue` uses the precedent-library taxonomy."""
+    __tablename__ = "intervenor_positions"
+    id = Column(Integer, primary_key=True)
+    case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
+    intervenor = Column(String(200), nullable=False)  # e.g. "OCC"
+    issue = Column(String(40), nullable=False)  # taxonomy key, see PRECEDENT_ISSUES
+    summary = Column(Text, nullable=False)
+    value_text = Column(String(200))  # e.g. "9.0% ROE" when the filing states one
+    source_doc = Column(String(300))  # filing title as DIS shows it
+    source_date = Column(String(10))  # YYYY-MM-DD
+    notes = Column(Text)
+
+    case = relationship("Case", back_populates="intervenor_positions")
 
 
 class Document(Base):

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Intervenor Positions - Rate Case Workbench{% endblock %}
+{% block content %}
+<h2 style="margin-top:0">Intervenor positions</h2>
+<p class="muted">What each intervenor actually asked for, by case and issue, sourced from its filed testimony or briefs. Positions land here only as verified from DIS filings — never inferred.</p>
+
+{% if rows.grouped %}
+{% for g in rows.grouped %}
+<div class="card">
+  <h3><a href="/cases/{{ g.case.id }}">{{ g.case.docket }}</a> <span class="muted">{{ g.case.utility.name }}</span></h3>
+  <div class="wrap"><table>
+    <tr><th>Intervenor</th><th>Issue</th><th>Position</th><th>Value</th><th>Source</th></tr>
+    {% for p in g.positions %}
+    <tr>
+      <td><strong>{{ p.intervenor }}</strong></td>
+      <td>{{ issue_labels[p.issue] }}</td>
+      <td>{{ p.summary }}</td>
+      <td>{{ p.value_text or "-" }}</td>
+      <td>{% if p.source_doc %}{{ p.source_doc }}{% if p.source_date %}<br><span class="muted">{{ p.source_date }}</span>{% endif %}{% else %}<span class="muted">—</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+</div>
+{% endfor %}
+{% else %}
+<div class="card"><p class="muted" style="margin-bottom:0">No intervenor positions on file yet.</p></div>
+{% endif %}
+
+<div class="card">
+  <h3>Extraction queue ({{ rows.queue|length }})</h3>
+  {% if rows.queue %}
+  <p class="muted">Open Tier 1 base rate cases with no positions on file yet — DIS research in progress; positions appear above as they are verified.</p>
+  <div class="wrap"><table>
+    <tr><th>Utility</th><th>Case</th><th>Status</th></tr>
+    {% for c in rows.queue %}
+    <tr>
+      <td>{{ c.utility.name }}</td>
+      <td><a href="/cases/{{ c.id }}">{{ c.docket }}</a></td>
+      <td>{{ c.status }}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}
+  <p class="muted" style="margin-bottom:0">No open Tier 1 cases waiting on extraction.</p>
+  {% endif %}
+</div>
+{% endblock %}

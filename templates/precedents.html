@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Precedent Library - Rate Case Workbench{% endblock %}
+{% block content %}
+<h2 style="margin-top:0">Precedent library</h2>
+<p class="muted">Decided cases, reorganized by issue. Only decided cases appear — pending and stipulated cases are not precedent yet. Values come from the three-way positions and the case's own data; verify against the order before citing.</p>
+
+{% for s in sections %}
+<div class="card">
+  <h3>{{ s.label }} ({{ s.rows|length }})</h3>
+  {% if s.rows %}
+  {% if s.key in ("roe", "equity_ratio", "rate_base", "cost_of_debt") %}
+  <div class="wrap"><table>
+    <tr><th>Utility</th><th>Case</th><th>Asked</th><th>Final</th><th>Give</th></tr>
+    {% for x in s.rows %}
+    <tr>
+      <td>{{ x.case.utility.name }}</td>
+      <td><a href="/cases/{{ x.case.id }}">{{ x.case.docket }}</a></td>
+      <td>{{ x.asked or "-" }}</td>
+      <td><strong>{{ x.final or "-" }}</strong></td>
+      <td>{{ x.give or "-" }}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% elif s.key == "rider_disposition" %}
+  <div class="wrap"><table>
+    <tr><th>Utility</th><th>Decided case</th><th>Rider</th><th>Disposition</th></tr>
+    {% for x in s.rows %}
+    <tr>
+      <td>{{ x.case.utility.name }}</td>
+      <td><a href="/cases/{{ x.case.id }}">{{ x.case.docket }}</a></td>
+      <td><strong>{{ x.rider.name }}</strong></td>
+      <td><span class="badge {% if x.rider.disposition=='roll_into_base' %}b-roll{% elif x.rider.disposition=='standalone' %}b-stand{% else %}b-undec{% endif %}">{{ disp_labels[x.rider.disposition] }}</span></td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% elif s.key == "test_period" %}
+  <div class="wrap"><table>
+    <tr><th>Utility</th><th>Case</th><th>Test year</th><th>Type</th><th>Order date</th></tr>
+    {% for x in s.rows %}
+    <tr>
+      <td>{{ x.case.utility.name }}</td>
+      <td><a href="/cases/{{ x.case.id }}">{{ x.case.docket }}</a></td>
+      <td>{{ x.test_year or "-" }}</td>
+      <td>{{ x.case_type }}</td>
+      <td>{{ x.date_order or "-" }}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% elif s.key == "cost_allocation" %}
+  <div class="wrap"><table>
+    <tr><th>Utility</th><th>Case</th><th>Class</th><th>Rate base</th><th>Opex</th><th>Depreciation</th><th>Taxes</th></tr>
+    {% for x in s.rows %}
+    {% for cc in x.classes %}
+    <tr>
+      <td>{{ x.case.utility.name }}</td>
+      <td><a href="/cases/{{ x.case.id }}">{{ x.case.docket }}</a></td>
+      <td><strong>{{ cc.name }}</strong></td>
+      <td>{{ "%.1f"|format(cc.alloc_rate_base) }}%</td>
+      <td>{{ "%.1f"|format(cc.alloc_opex) if cc.alloc_opex is not none else "-" }}</td>
+      <td>{{ "%.1f"|format(cc.alloc_depreciation) if cc.alloc_depreciation is not none else "-" }}</td>
+      <td>{{ "%.1f"|format(cc.alloc_taxes) if cc.alloc_taxes is not none else "-" }}</td>
+    </tr>
+    {% endfor %}
+    {% endfor %}
+  </table></div>
+  {% endif %}
+  {% else %}
+  <p class="muted" style="margin-bottom:0">No decided-case data on file for this issue.</p>
+  {% endif %}
+</div>
+{% endfor %}
+{% endblock %}

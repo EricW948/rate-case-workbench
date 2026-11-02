@@ -19,7 +19,7 @@ import database
 from database import init_db, get_db
 from models import (Utility, ServiceArea, Case, ThreeWayPosition, TariffRider, Document,
                     EarnedROE, DiscoveryRequest, ExpertWitness, Scenario, ScenarioAdjustment,
-                    Milestone)
+                    Milestone, IntervenorPosition)
 import seed as seed_module
 import excel_templates
 import excel_import
@@ -243,6 +243,21 @@ def startup():
                         Milestone.due_date == due).first():
                     db.add(Milestone(case_id=mc.id, label=label, due_date=due,
                                      kind=kind, notes=notes))
+            # Phase 3 intervenor positions (2026-11-02 DIS extraction):
+            # verified rows only, shared with seed.py. Create-if-missing
+            # on case + intervenor + issue.
+            for row in seed_module.INTERVENOR_POSITIONS:
+                (docket, intervenor, issue, summary, value, doc, sdate,
+                 notes) = row
+                ic = db.query(Case).filter(Case.docket == docket).first()
+                if ic and not db.query(IntervenorPosition).filter(
+                        IntervenorPosition.case_id == ic.id,
+                        IntervenorPosition.intervenor == intervenor,
+                        IntervenorPosition.issue == issue).first():
+                    db.add(IntervenorPosition(
+                        case_id=ic.id, intervenor=intervenor, issue=issue,
+                        summary=summary, value_text=value, source_doc=doc,
+                        source_date=sdate, notes=notes))
             # Gas position extraction (2026-10-29): positions for the seven
             # gas cases that had case rows but no build, shared with
             # seed.py. Create-if-missing so existing production DBs pick
@@ -740,7 +755,159 @@ def upcoming_deadlines(db, n=5):
     return [i for i in deadline_items(db) if (i["date"] or "9999") >= today][:n]
 
 
+def countdown_rows(db, today=None):
+    """Phase 3: next-filing countdown — each utility's next dated step and
+    how many days out it sits, built on the Phase 1 deadline machine (the
+    same items /deadlines shows). A utility with no dated next step is
+    listed as undated, never given a guessed date. `today` is injectable
+    so tests pin the clock instead of depending on the real calendar."""
+    today = today or date.today()
+    today_s = today.isoformat()
+    by_utility = {}
+    for i in deadline_items(db):
+        by_utility.setdefault(i["utility"], []).append(i)
+    rows = []
+    for u in db.query(Utility).order_by(Utility.name).all():
+        uitems = by_utility.get(u.name, [])
+        upcoming = [i for i in uitems if (i["date"] or "9999") >= today_s]
+        overdue = [i for i in uitems if (i["date"] or "9999") < today_s]
+        nxt = upcoming[0] if upcoming else None  # deadline_items is date-sorted
+        days = (date.fromisoformat(nxt["date"]) - today).days if nxt else None
+        if days is None:
+            label = "No dated next step on file"
+        elif days == 0:
+            label = "Today"
+        elif days == 1:
+            label = "Tomorrow"
+        else:
+            label = f"In {days} days"
+        rows.append({"utility": u.name, "utility_id": u.id, "next": nxt,
+                     "days": days, "days_label": label,
+                     "overdue_count": len(overdue),
+                     "upcoming_count": len(upcoming)})
+    rows.sort(key=lambda r: (r["days"] is None, r["days"] or 0, r["utility"]))
+    return rows
+
+
 # ---------------------------------------------------------------- pages
+
+def _docket_type(docket):
+    """Final docket segment, e.g. 'RDR' for 25-0110-EL-RDR."""
+    parts = (docket or "").split("-")
+    return parts[-1] if len(parts) >= 4 else ""
+
+
+def tracker_rows(db):
+    """Phase 3: rider/deferral tracker — exact joins only, never a guessed
+    link. Review proceedings are pending RDR cases; deferral proceedings
+    are pending Tier 2 records whose own notes mention deferral; rider
+    rows link to an authority case only when that docket exists in the
+    app. A rider whose review proceeding is not on file stays unlinked."""
+    pending = db.query(Case).filter(Case.status == "pending").all()
+    by_docket = {c.docket: c for c in db.query(Case).all()}
+
+    def next_date(case):
+        dates = [m.due_date for m in case.milestones if m.due_date]
+        return min(dates) if dates else None
+
+    review = [{"case": c, "next_date": next_date(c)}
+              for c in pending if _docket_type(c.docket) == "RDR"]
+    deferral = [{"case": c, "next_date": next_date(c)}
+                for c in pending
+                if c.case_type == "other" and "deferr" in (c.notes or "").lower()]
+    riders = (db.query(TariffRider).join(Utility)
+              .order_by(Utility.name, TariffRider.name).all())
+    undecided = [{"rider": r, "authority_case": by_docket.get(r.authority_docket)}
+                 for r in riders if r.disposition == "undecided"]
+    open_auth = [{"rider": r, "authority_case": by_docket[r.authority_docket]}
+                 for r in riders
+                 if r.authority_docket in by_docket
+                 and by_docket[r.authority_docket].status == "pending"]
+    review.sort(key=lambda x: (x["case"].utility.name, x["case"].docket))
+    deferral.sort(key=lambda x: (x["case"].utility.name, x["case"].docket))
+    return {"review_cases": review, "deferral_cases": deferral,
+            "undecided_riders": undecided, "open_authority": open_auth}
+
+
+# Phase 3: precedent library by issue (taxonomy approved 2026-11-02).
+PRECEDENT_ISSUES = [
+    ("roe", "ROE"),
+    ("equity_ratio", "Capital structure (equity ratio)"),
+    ("rate_base", "Rate base"),
+    ("cost_of_debt", "Cost of debt"),
+    ("rider_disposition", "Rider roll-in vs. standalone"),
+    ("test_period", "Test period"),
+    ("cost_allocation", "Cost allocation"),
+]
+ISSUE_LABELS = dict(PRECEDENT_ISSUES)
+_NUMERIC_ISSUE_ATTR = {"roe": "roe", "equity_ratio": "equity_ratio",
+                       "rate_base": "rate_base", "cost_of_debt": "cost_of_debt"}
+
+
+def precedent_rows(db):
+    """Phase 3: decided cases reorganized by issue — the precedent
+    library. Numeric issues read final vs. asked off the three-way
+    positions; rider disposition joins riders to their decided authority
+    case by exact docket; test period and cost allocation read the
+    case's own data. Pending and stipulated cases are not precedent:
+    only decided cases appear."""
+    sections = {k: {"key": k, "label": label, "rows": []}
+                for k, label in PRECEDENT_ISSUES}
+    for c in db.query(Case).filter(Case.status == "decided").all():
+        final = next((p for p in c.positions if p.stage == "final_or_stip"), None)
+        asked = next((p for p in c.positions if p.stage == "as_filed"), None)
+        if final is not None:
+            for key, attr in _NUMERIC_ISSUE_ATTR.items():
+                f = getattr(final, attr)
+                a = getattr(asked, attr) if asked is not None else None
+                if f is None and a is None:
+                    continue
+                if key == "rate_base":
+                    fmt = _fmt_money
+                    give = _fmt_money(f - a) if (a is not None and f is not None) else None
+                else:
+                    fmt = lambda v: f"{v:.2f}%"
+                    give = (f"{f - a:+.2f} pp"
+                            if (a is not None and f is not None) else None)
+                sections[key]["rows"].append({
+                    "case": c, "asked": fmt(a) if a is not None else None,
+                    "final": fmt(f) if f is not None else None, "give": give})
+        for r in db.query(TariffRider).filter(
+                TariffRider.authority_docket == c.docket).all():
+            sections["rider_disposition"]["rows"].append({"case": c, "rider": r})
+        sections["test_period"]["rows"].append({
+            "case": c, "test_year": c.test_year, "case_type": c.case_type,
+            "date_order": c.date_order})
+        classes = [cc for cc in c.customer_classes
+                   if cc.alloc_rate_base is not None]
+        if classes:
+            sections["cost_allocation"]["rows"].append({"case": c, "classes": classes})
+    for s in sections.values():
+        s["rows"].sort(key=lambda x: (x["case"].utility.name, x["case"].docket))
+    return [sections[k] for k, _ in PRECEDENT_ISSUES]
+
+
+def intervenor_rows(db):
+    """Phase 3: intervenor positions grouped by case, plus the extraction
+    queue — open Tier 1 base rate cases with no positions on file yet.
+    The queue is the honest state: positions land here only as verified
+    from DIS filings, never inferred."""
+    grouped = {}
+    for p in (db.query(IntervenorPosition).join(Case).join(Utility)
+              .order_by(Utility.name, Case.docket, IntervenorPosition.intervenor,
+                        IntervenorPosition.issue).all()):
+        grouped.setdefault(p.case_id, {"case": p.case, "positions": []})
+        grouped[p.case_id]["positions"].append(p)
+    queue = (db.query(Case).join(Utility)
+             .filter(Case.status.in_(["pending", "stipulated"]),
+                     Case.case_type.in_(["historical", "prospective"]))
+             .order_by(Utility.name, Case.docket).all())
+    queue = [c for c in queue if c.id not in grouped]
+    return {"grouped": sorted(grouped.values(),
+                               key=lambda g: (g["case"].utility.name,
+                                              g["case"].docket)),
+            "queue": queue}
+
 
 # External navigation tools every utility team needs one tap away.
 EXTERNAL_TOOLS = [
@@ -1623,6 +1790,47 @@ def deadline_page(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(request, "deadlines.html", {
         "request": request, "overdue": overdue, "upcoming": upcoming,
         "today": today, "kind_labels": KIND_LABELS})
+
+
+@app.get("/countdown", response_class=HTMLResponse)
+def countdown_page(request: Request, db: Session = Depends(get_db)):
+    """Phase 3: next-filing countdown — each utility's next dated step and
+    how many days out it sits, nearest first. Dates are tracked facts;
+    verify against PUCO DIS before filing around them."""
+    return templates.TemplateResponse(request, "countdown.html", {
+        "request": request, "rows": countdown_rows(db),
+        "today": date.today().isoformat(), "kind_labels": KIND_LABELS})
+
+
+@app.get("/tracker", response_class=HTMLResponse)
+def tracker_page(request: Request, db: Session = Depends(get_db)):
+    """Phase 3: rider/deferral tracker — open rider-review proceedings,
+    deferral proceedings, riders with no disposition call, and riders
+    whose authority case is still open. Links are exact docket matches;
+    nothing is linked by guesswork."""
+    return templates.TemplateResponse(request, "tracker.html", {
+        "request": request, "t": tracker_rows(db),
+        "disp_labels": DISP_LABELS,
+        "rider_status_labels": RIDER_STATUS_LABELS})
+
+
+@app.get("/precedents", response_class=HTMLResponse)
+def precedents_page(request: Request, db: Session = Depends(get_db)):
+    """Phase 3: precedent library — decided cases reorganized by issue.
+    Only decided cases appear; pending and stipulated cases are not
+    precedent yet."""
+    return templates.TemplateResponse(request, "precedents.html", {
+        "request": request, "sections": precedent_rows(db),
+        "disp_labels": DISP_LABELS})
+
+
+@app.get("/intervenors", response_class=HTMLResponse)
+def intervenors_page(request: Request, db: Session = Depends(get_db)):
+    """Phase 3: intervenor positions by case, plus the extraction queue
+    of open Tier 1 cases with no positions on file yet."""
+    return templates.TemplateResponse(request, "intervenors.html", {
+        "request": request, "rows": intervenor_rows(db),
+        "issue_labels": ISSUE_LABELS})
 
 
 # ---------------------------------------------------------------- import

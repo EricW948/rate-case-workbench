@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Rider &amp; Deferral Tracker - Rate Case Workbench{% endblock %}
+{% block content %}
+<h2 style="margin-top:0">Rider &amp; deferral tracker</h2>
+<p class="muted">Open rider-review proceedings, deferral proceedings, and the riders still waiting on a call — linked by exact docket match only. A rider whose review proceeding is not on file stays unlinked rather than guessed.</p>
+
+<div class="card">
+  <h3>Open rider-review proceedings ({{ t.review_cases|length }})</h3>
+  {% if t.review_cases %}
+  <div class="wrap"><table>
+    <tr><th>Utility</th><th>Docket</th><th>Next date</th><th>Notes</th></tr>
+    {% for x in t.review_cases %}
+    <tr>
+      <td>{{ x.case.utility.name }}</td>
+      <td><a href="/cases/{{ x.case.id }}">{{ x.case.docket }}</a></td>
+      <td>{% if x.next_date %}<strong>{{ x.next_date }}</strong>{% else %}<span class="muted">No dated next step on file</span>{% endif %}</td>
+      <td class="muted">{{ x.case.notes or "-" }}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}
+  <p class="muted" style="margin-bottom:0">No open rider-review proceedings on file.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>Deferral proceedings ({{ t.deferral_cases|length }})</h3>
+  {% if t.deferral_cases %}
+  <div class="wrap"><table>
+    <tr><th>Utility</th><th>Docket</th><th>Next date</th><th>Notes</th></tr>
+    {% for x in t.deferral_cases %}
+    <tr>
+      <td>{{ x.case.utility.name }}</td>
+      <td><a href="/cases/{{ x.case.id }}">{{ x.case.docket }}</a></td>
+      <td>{% if x.next_date %}<strong>{{ x.next_date }}</strong>{% else %}<span class="muted">No dated next step on file</span>{% endif %}</td>
+      <td class="muted">{{ x.case.notes or "-" }}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}
+  <p class="muted" style="margin-bottom:0">No deferral proceedings on file.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>Riders with no disposition call ({{ t.undecided_riders|length }})</h3>
+  {% if t.undecided_riders %}
+  <div class="wrap"><table>
+    <tr><th>Utility</th><th>Rider</th><th>Status</th><th>Authority case</th></tr>
+    {% for x in t.undecided_riders %}
+    <tr>
+      <td>{{ x.rider.utility.name }}</td>
+      <td><strong>{{ x.rider.name }}</strong></td>
+      <td><span class="badge {% if x.rider.status=='effective' %}b-decided{% elif x.rider.status=='proposed' %}b-pending{% else %}b-historical{% endif %}">{{ rider_status_labels[x.rider.status] }}</span></td>
+      <td>{% if x.authority_case %}<a href="/cases/{{ x.authority_case.id }}">{{ x.authority_case.docket }}</a>{% elif x.rider.authority_docket %}{{ x.rider.authority_docket }} <span class="muted">(not in app)</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}
+  <p class="muted" style="margin-bottom:0">Every rider has a disposition call.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>Riders whose authority case is still open ({{ t.open_authority|length }})</h3>
+  {% if t.open_authority %}
+  <div class="wrap"><table>
+    <tr><th>Utility</th><th>Rider</th><th>Disposition</th><th>Open case</th></tr>
+    {% for x in t.open_authority %}
+    <tr>
+      <td>{{ x.rider.utility.name }}</td>
+      <td><strong>{{ x.rider.name }}</strong></td>
+      <td><span class="badge {% if x.rider.disposition=='roll_into_base' %}b-roll{% elif x.rider.disposition=='standalone' %}b-stand{% else %}b-undec{% endif %}">{{ disp_labels[x.rider.disposition] }}</span></td>
+      <td><a href="/cases/{{ x.authority_case.id }}">{{ x.authority_case.docket }}</a></td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}
+  <p class="muted" style="margin-bottom:0">No rider's authority case is currently open.</p>
+  {% endif %}
+</div>
+{% endblock %}
