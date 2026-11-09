@@ -88,11 +88,15 @@ def ensure_milestone(db, case, label, due_date, kind="deadline", notes=None):
 # Never invent dates: AES 25-0958 (decision date unknown) and Columbia 26-0965
 # (no dated milestones on record) have none.
 PHASE1_MILESTONES = [
+    ("26-0974-EL-SSO", "Testimony in support of stipulation due", "2026-11-09", "testimony", "Stipulation and Recommendation filed 11/05/2026; ALJ Entry orders supporting testimony by 11/09/2026."),
     ("26-0974-EL-SSO", "Evidentiary hearing (10 AM, Room 11-A)", "2026-11-12", "hearing", "AES SSO evidentiary hearing."),
     ("26-0755-EL-ATA", "Replies and interventions due", "2026-11-12", "comments", "Duke Rate DC replies and interventions due."),
     ("26-0132-EL-AIR", "Local public hearing \u2014 Middletown (6 PM)", "2026-12-01", "hearing", "Duke Energy Ohio (Electric) local public hearing."),
+    ("26-0347-EL-AIR", "Local public hearing \u2014 Cleveland (5 PM)", "2026-12-02", "hearing", "Lausche State Office Building, Plaza Level, 615 W. Superior Ave., Cleveland. ALJ Entry 11/05/2026."),
+    ("26-0347-EL-AIR", "Local public hearing \u2014 Akron (5 PM)", "2026-12-09", "hearing", "Akron-Summit County Public Library, 60 S. High St., Akron. ALJ Entry 11/05/2026."),
     ("26-0132-EL-AIR", "Local public hearings \u2014 Cincinnati/Hamilton (12:30 PM and 6 PM)", "2026-12-10", "hearing", "Duke Energy Ohio (Electric) local public hearings."),
     ("26-0505-EL-FOR", "Intervenor testimony due", "2026-12-14", "testimony", "AES forecast intervenor testimony due."),
+    ("26-0347-EL-AIR", "Local public hearing \u2014 Toledo (6 PM)", "2026-12-17", "hearing", "First Floor, Commissioners' Hearing Room, One Government Center, Toledo (room corrected 11/06/2026 \u2014 not Suite 800). ALJ Entry 11/05/2026."),
     ("26-0505-EL-FOR", "Discovery cutoff", "2026-12-28", "deadline", "AES forecast discovery cutoff."),
     ("26-0505-EL-FOR", "Staff testimony due", "2027-01-05", "testimony", "AES forecast Staff testimony due."),
     ("26-0505-EL-FOR", "Evidentiary hearing", "2027-01-12", "hearing", "AES forecast evidentiary hearing."),
@@ -1486,7 +1490,9 @@ def seed():
               "Companion dockets 26-0975-EL-RDR, 26-0976-EL-AAM. "
               "Staff Report was due 10/16/2026; intervention deadline closed "
               "10/23/2026; prehearing 10/28/2026 (10 AM, Room 11-C). "
-              "Next milestone: evidentiary hearing 11/12/2026 (10 AM, Room 11-A).")
+              "Stipulation and Recommendation filed 11/05/2026; testimony in "
+              "support due 11/09/2026; evidentiary hearing 11/12/2026 "
+              "(10 AM, Room 11-A).")
     get_or_create_case(
         db, "26-0755-EL-ATA", duke_elec, case_type="other", status="pending",
         notes="Tier 2 docket record — milestones only, no rate-case build. "

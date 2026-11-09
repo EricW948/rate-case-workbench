@@ -73,16 +73,16 @@ def test_bridge_absent_for_asked_only_case(db):
 
 def test_milestones_seed_and_startup_idempotent(db):
     """Seed path and production path (startup migration, run twice) each
-    yield exactly the nine Phase 1 milestones, no duplicates."""
+    yield exactly the thirteen Phase 1 milestones, no duplicates."""
     import main
     from models import Milestone
     seed.seed()
     db.expire_all()
-    assert db.query(Milestone).count() == 9
+    assert db.query(Milestone).count() == 13
     main.startup()
     main.startup()
     db.expire_all()
-    assert db.query(Milestone).count() == 9
+    assert db.query(Milestone).count() == 13
     m = db.query(Milestone).filter(
         Milestone.due_date == "2026-11-12",
         Milestone.label.like("%Room 11-A%")).first()
@@ -114,7 +114,9 @@ def test_upcoming_deadlines_sorted(db):
     assert len(ups) == 5
     dates = [u["date"] for u in ups]
     assert dates == sorted(dates)
-    assert dates[0] == "2026-11-12"
+    # Nearest dated item as of the Nov 6 refresh: AES 26-0974 testimony
+    # due 11/09. This assertion ages as dates pass (see Phase 1 notes).
+    assert dates[0] == "2026-11-09"
 
 
 def test_benchmark_coverage_names_the_gap(db):
